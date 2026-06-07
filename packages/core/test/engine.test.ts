@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { GameEngine, GitModel, VirtualFs, completeInput, parseCommand, resolvePath } from "../src/index.ts";
+import {
+  GameEngine,
+  GitModel,
+  VirtualFs,
+  completeInput,
+  completionCandidates,
+  parseCommand,
+  resolvePath,
+} from "../src/index.ts";
 import { heroCopy } from "@terminal-invaders/missions";
 
 describe("parseCommand", () => {
@@ -93,5 +101,19 @@ describe("autocomplete", () => {
     const res = completeInput("ls ", engine);
     expect(res.options).toContain("app/");
     expect(res.options).toContain("components/");
+  });
+
+  it("shares one source with the CLI completer (completionCandidates)", () => {
+    const engine = new GameEngine(heroCopy);
+    engine.execute("cd src");
+
+    // The CLI's readline completer is exactly this: candidates + a "/" on dirs.
+    const cc = completionCandidates("ls ", engine);
+    const cliView = cc.candidates.map((cand) => (cc.dirs.has(cand) ? `${cand}/` : cand));
+
+    // completeInput is built on the same primitive, so its option list must match.
+    const ci = completeInput("ls ", engine);
+    expect(cliView.sort()).toEqual([...ci.options].sort());
+    expect(cliView).toEqual(expect.arrayContaining(["app/", "components/"]));
   });
 });

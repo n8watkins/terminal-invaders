@@ -1,7 +1,7 @@
 #!/usr/bin/env -S npx tsx
 import * as readline from "node:readline";
 import { stdin, stdout } from "node:process";
-import { GameEngine, resolvePath, splitForCompletion, type Mission } from "@terminal-invaders/core";
+import { GameEngine, completionCandidates, type Mission } from "@terminal-invaders/core";
 import { MISSIONS, getMission } from "@terminal-invaders/missions";
 import { c } from "./colors.ts";
 import { banner, checklist, prompt, renderEvents, replayBreakdown } from "./render.ts";
@@ -37,29 +37,11 @@ async function chooseMission(arg?: string): Promise<Mission | undefined> {
 function buildCompleter(engine: GameEngine) {
   return (line: string): [string[], string] => {
     if (engine.editorOpen) return [[], line]; // editor manages its own input
-    const trailingSpace = /\s$/.test(line);
-    const tokens = line.split(/\s+/).filter(Boolean);
-    const current = trailingSpace ? "" : tokens[tokens.length - 1] ?? "";
-    const atCommand = tokens.length === 0 || (tokens.length === 1 && !trailingSpace);
-
-    let candidates: string[];
-    if (atCommand) {
-      candidates = engine.knownCommandNames().filter((cmd) => cmd.startsWith(current));
-    } else {
-      const spec = engine.getCommand(tokens[0] ?? "");
-      const argType = spec?.argType ?? "path";
-      if (argType === "none") return [[], current];
-      const { dir, fragment } = splitForCompletion(current);
-      const baseDir = resolvePath(engine.state.cwd, dir || ".");
-      candidates = engine.fs
-        .listDir(baseDir)
-        .filter((e) => (argType === "dir" ? e.node.type === "dir" : true))
-        .filter((e) => e.name.startsWith(fragment))
-        .map((e) => dir + e.name + (e.node.type === "dir" ? "/" : ""));
-    }
-
+    // Same completion brain as the web app — just adapted to readline's
+    // [candidates, prefix] shape, with a "/" appended to directories.
+    const { current, candidates, dirs } = completionCandidates(line, engine);
     if (candidates.length > 0) engine.noteAutocompleteUsed();
-    return [candidates.length ? candidates : [], current];
+    return [candidates.map((cand) => (dirs.has(cand) ? `${cand}/` : cand)), current];
   };
 }
 
