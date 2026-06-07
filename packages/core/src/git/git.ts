@@ -129,6 +129,11 @@ export class GitModel {
   }
 }
 
+/**
+ * A positional line diff: it compares line N to line N, not a real LCS. So an
+ * inserted/removed line makes everything after it read as changed. That's fine
+ * for the tiny teaching files here — don't reach for this as a general diff.
+ */
 function lineDiff(from: string, to: string): string[] {
   const a = from.split("\n");
   const b = to.split("\n");

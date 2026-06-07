@@ -117,7 +117,12 @@ function snapshotGit(run: SandboxRun, mission: Mission): GitSnapshot {
     if (!raw.trim()) continue;
     const index = raw[0];
     const work = raw[1];
-    const file = raw.slice(3).trim();
+    let file = raw.slice(3).trim();
+    // Renames/copies report "old -> new"; the new path is what's on disk. No
+    // mission renames today, but parse it correctly rather than mangling it.
+    if ((index === "R" || index === "C") && file.includes(" -> ")) {
+      file = file.split(" -> ")[1] ?? file;
+    }
     const vpath = toVirtual(file);
     if (index !== " " && index !== "?") staged.add(vpath);
     if (work !== " " || index === "?") modified.push(vpath);

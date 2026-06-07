@@ -8,7 +8,7 @@ import { resolvePath } from "../fs/pathUtils.ts";
 import type { Mission } from "../missions/types.ts";
 import { isObjectiveComplete } from "../missions/validator.ts";
 import { objectivePoints, POINTS, timeBonus } from "../scoring/scoring.ts";
-import type { GameEvent } from "./events.ts";
+import type { GameEvent, Mistake } from "./events.ts";
 import { createInitialState, type SessionState } from "./state.ts";
 
 export type ExecuteResult = {
@@ -25,7 +25,8 @@ const PAR_SECONDS = 90;
  */
 export class GameEngine {
   readonly mission: Mission;
-  readonly fs: VirtualFs;
+  /** Rebuilt on `reset()`, so not readonly. UIs should always read it through the engine. */
+  fs: VirtualFs;
   state: SessionState;
   private commands: Map<string, CommandSpec>;
   private editor?: EditorModel;
@@ -350,7 +351,7 @@ export class GameEngine {
     if (!this.state.commandsUsed.includes(name)) this.state.commandsUsed.push(name);
   }
 
-  private recordMistake(mistake: { kind: any; input: string; at: number }): void {
+  private recordMistake(mistake: Mistake): void {
     this.state.mistakes.push(mistake);
     this.state.score = Math.max(0, this.state.score - POINTS.mistakePenalty);
   }
@@ -366,7 +367,7 @@ export class GameEngine {
     this.state = createInitialState(this.mission);
     this.editor = undefined;
     // Rebuild the filesystem so edits are undone.
-    (this as { fs: VirtualFs }).fs = new VirtualFs(this.mission.filesystem);
+    this.fs = new VirtualFs(this.mission.filesystem);
     this.git = this.mission.git ? new GitModel(this.mission.git.head) : undefined;
     this.syncGitMirrors();
   }
