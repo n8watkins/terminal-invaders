@@ -31,9 +31,12 @@ function toRel(virtualPath: string): string {
   return virtualPath.slice(`${VROOT}/`.length);
 }
 
-function assertSafe(dir: string): void {
+export function assertSafe(dir: string): void {
   const resolved = path.resolve(dir);
-  if (!resolved.startsWith(path.resolve(BASE))) {
+  const base = path.resolve(BASE);
+  // Exact prefix match on a path boundary — a string `startsWith` would let a
+  // sibling like `<base>-evil` slip past the guard.
+  if (resolved !== base && !resolved.startsWith(base + path.sep)) {
     throw new Error(`refusing to operate outside the sandbox base: ${resolved}`);
   }
 }

@@ -3,7 +3,8 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { replaceCopy, stageAndCommit, undoTheMistake } from "@terminal-invaders/missions";
-import { createSandbox, sandboxEligible, validateSandbox } from "../src/sandbox.ts";
+import * as os from "node:os";
+import { assertSafe, createSandbox, sandboxEligible, validateSandbox } from "../src/sandbox.ts";
 
 const hasGit = (() => {
   try {
@@ -66,5 +67,14 @@ describe("real-sandbox mode", () => {
     const run = createSandbox(replaceCopy);
     cleanup.push(run.runDir);
     expect(run.runDir).toContain(path.join(".terminal-invaders", "runs"));
+  });
+
+  it("guards the sandbox base on a path boundary, not a string prefix", () => {
+    const base = path.join(os.homedir(), ".terminal-invaders", "runs");
+    expect(() => assertSafe(path.join(base, "ok-run"))).not.toThrow();
+    expect(() => assertSafe(base)).not.toThrow();
+    // A sibling that merely shares the prefix string must be rejected.
+    expect(() => assertSafe(`${base}-evil`)).toThrow(/outside the sandbox base/);
+    expect(() => assertSafe(path.join(os.homedir(), "real-project"))).toThrow();
   });
 });

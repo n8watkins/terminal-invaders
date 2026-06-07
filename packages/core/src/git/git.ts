@@ -5,7 +5,7 @@ import type { VirtualFs } from "../fs/virtualFs.ts";
  * (staging area), and the working tree (the live VirtualFs). Enough to practice
  * status → diff → add → restore → commit and, crucially, *recovering* safely.
  */
-export type GitCommit = { message: string; at: number };
+export type GitCommit = { sha: string; message: string; at: number };
 
 export type GitStatus = {
   staged: { path: string; kind: "modified" | "added" | "deleted" }[];
@@ -115,8 +115,9 @@ export class GitModel {
       return { ok: false, message: "nothing to commit (use `git add` first)" };
     }
     this.head = new Map(this.index);
-    this.commits.push({ message, at: Date.now() });
-    return { ok: true, message: `[main ${shortSha()}] ${message}` };
+    const sha = shortSha();
+    this.commits.push({ sha, message, at: Date.now() });
+    return { ok: true, message: `[main ${sha}] ${message}` };
   }
 
   log(): string[] {
@@ -124,7 +125,7 @@ export class GitModel {
     return this.commits
       .slice()
       .reverse()
-      .map((c) => `${shortSha()} ${c.message}`);
+      .map((c) => `${c.sha} ${c.message}`);
   }
 }
 

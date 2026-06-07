@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GameEngine, completeInput, parseCommand, resolvePath } from "../src/index.ts";
+import { GameEngine, GitModel, VirtualFs, completeInput, parseCommand, resolvePath } from "../src/index.ts";
 import { heroCopy } from "@terminal-invaders/missions";
 
 describe("parseCommand", () => {
@@ -53,6 +53,23 @@ describe("GameEngine — hero copy mission", () => {
     const { output } = engine.execute("cd nope");
     expect(output[0]).toMatch(/no directory named/);
     expect(engine.state.mistakes.length).toBe(1);
+  });
+});
+
+describe("GitModel — commit shas", () => {
+  it("uses the same stable sha at commit time and in the log", () => {
+    const fs = new VirtualFs({ "/project/a.ts": { type: "file", content: "v1" } });
+    const git = new GitModel({ "/project/a.ts": "v0" });
+
+    git.add(fs, "/project/a.ts");
+    const committed = git.commit("change a");
+    const sha = committed.message.match(/\[main ([0-9a-f]+)\]/)?.[1];
+    expect(sha).toBeTruthy();
+
+    // The sha in `git log` matches the one printed at commit time, and is stable
+    // across repeated reads (it used to be re-randomized on every call).
+    expect(git.log()[0]).toBe(`${sha} change a`);
+    expect(git.log()).toEqual(git.log());
   });
 });
 
