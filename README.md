@@ -29,7 +29,8 @@ check                   →  validate the mission
 - ✅ `apps/web` — browser version (React/Vite) reusing the **same core engine**:
   terminal-center layout, live file tree, mission panel + next-step, Tab autocomplete,
   objective checklist, and an arcade mini-map.
-- ⏳ Real sandbox mode (write missions to disk, watch real `nvim`/`git`).
+- ✅ **Real-sandbox mode** — writes a mission to disk in an isolated folder, `git init`s it,
+  and watches while you use your *real* shell / nvim / git, auto-scoring from disk + git state.
 
 ## Quick start
 
@@ -38,7 +39,9 @@ pnpm install
 pnpm play            # launch the CLI, pick a mission from the menu
 pnpm play hero-copy-001   # or jump straight to a mission by id/number
 pnpm dev             # launch the browser version (Vite dev server)
-pnpm test            # run the core engine tests
+pnpm play sandbox            # REAL mode: pick a sandbox mission
+pnpm play sandbox git-009    # REAL mode: jump straight to one
+pnpm test            # run the core engine + sandbox tests
 pnpm typecheck       # tsc across all packages
 ```
 
@@ -89,6 +92,17 @@ arcade-y browser UI.
 - **Errors are the coach.** A bad `cd` lists what's actually available; a missing file
   suggests the closest match. The game teaches through its error messages.
 
+### Two ways to play a mission
+
+- **Simulated** (`pnpm play`, `pnpm dev`) — the engine simulates the shell, nvim, and git.
+  Fast, zero-setup, runs anywhere. Every objective type is checkable because the engine sees
+  every command.
+- **Real sandbox** (`pnpm play sandbox`) — the mission is written to a throwaway folder and you
+  drive your *actual* tools. The engine can't see your keystrokes, so it scores from the
+  resulting disk + git state. This lives in `apps/cli/src/sandbox.ts` (it needs `node:fs` /
+  `child_process`); **core stays environment-pure** and is reused for validation by reading the
+  disk back into a `VirtualFs`.
+
 ## The missions (current)
 
 | id              | title                  | track       | teaches                              |
@@ -136,10 +150,17 @@ Built in the order the PRD recommends, adjusted to ship the useful part first.
 - [~] **Sprint 4 — Mission pack.** LazyVim basics and Git safety tracks landed (with
   simulated nvim + git engines). Still to do: deepen each track toward the full 10-per-track
   curriculum.
-- [ ] **Sprint 5 — Real sandbox mode.** `terminal-invaders start <mission> --real` writes a
-  mission folder to `~/.terminal-invaders/runs/...`, you use your *real* Ghostty + nvim +
-  git, and a file watcher validates. This is where real LazyVim practice happens. Always
-  isolated — never touches your real projects.
+- [x] **Sprint 5 — Real sandbox mode.** `pnpm play sandbox <mission>` writes a mission folder
+  to `~/.terminal-invaders/runs/...` (git-init'd when the mission uses git), and you use your
+  *real* Ghostty + nvim + git while the watcher validates from disk + git state. Always
+  isolated — it refuses to operate outside the sandbox base, so your real projects are never
+  touched. This is where real LazyVim/git muscle memory happens.
+
+  Only objectives observable from disk are auto-checked in sandbox mode (`file_contains`,
+  `file_lacks`, `git_staged`, `git_clean`, `git_committed`) — see `isSandboxObservable`. A
+  mission needs at least one such objective to be sandbox-eligible. Because the watcher polls
+  rather than intercepts, transient git states are treated as "staged-or-committed" so a fast
+  stage→commit still latches.
 
 ### Tracks (the curriculum)
 

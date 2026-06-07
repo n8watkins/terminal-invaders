@@ -5,6 +5,7 @@ import { GameEngine, resolvePath, splitForCompletion, type Mission } from "@term
 import { MISSIONS, getMission } from "@terminal-invaders/missions";
 import { c } from "./colors.ts";
 import { banner, checklist, prompt, renderEvents, replayBreakdown } from "./render.ts";
+import { runSandbox, sandboxEligible } from "./sandbox.ts";
 
 function print(s: string | string[]): void {
   stdout.write((Array.isArray(s) ? s.join("\n") : s) + "\n");
@@ -121,7 +122,32 @@ async function playMission(mission: Mission): Promise<void> {
   });
 }
 
+async function chooseSandboxMission(arg?: string): Promise<Mission | undefined> {
+  const eligible = MISSIONS.filter(sandboxEligible);
+  if (arg) {
+    const byId = getMission(arg) ?? eligible[Number(arg) - 1];
+    if (byId) return byId;
+    print(c.red(`No mission "${arg}".`));
+  }
+  print(c.bold(c.magenta("\nTERMINAL INVADERS")) + c.dim("  — real sandbox missions\n"));
+  eligible.forEach((m, i) => {
+    print(`  ${c.cyan(String(i + 1))}. ${c.bold(m.title)} ${c.dim(`(${m.track}, ${"★".repeat(m.difficulty)})`)}`);
+  });
+  print("");
+  const rl = readline.createInterface({ input: stdin, output: stdout });
+  const answer = await new Promise<string>((res) => rl.question(c.green("select> "), res));
+  rl.close();
+  return eligible[Number(answer.trim()) - 1] ?? getMission(answer.trim());
+}
+
 async function main(): Promise<void> {
+  // Real-sandbox mode: `terminal-invaders sandbox [missionId]`
+  if (process.argv[2] === "sandbox" || process.argv[2] === "--real") {
+    const mission = await chooseSandboxMission(process.argv[3]);
+    if (mission) await runSandbox(mission);
+    return;
+  }
+
   const arg = process.argv[2];
   let mission = await chooseMission(arg);
 

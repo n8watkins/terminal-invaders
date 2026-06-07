@@ -74,6 +74,24 @@ export function missingObjectives(
     .map((s) => s.objective);
 }
 
+/**
+ * Which objectives can be verified purely from the filesystem + git state on
+ * disk (no command interception). These are the ones real-sandbox mode can check
+ * while the player uses their own shell / nvim / git.
+ */
+export function isSandboxObservable(objective: Objective): boolean {
+  switch (objective.type) {
+    case "file_contains":
+    case "file_lacks":
+    case "git_staged":
+    case "git_clean":
+    case "git_committed":
+      return true;
+    default:
+      return false;
+  }
+}
+
 export function allObjectivesComplete(
   mission: Mission,
   state: SessionState,
