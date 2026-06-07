@@ -26,7 +26,9 @@ check                   →  validate the mission
 - ✅ Simulated **git** (HEAD/index/working: `status` `diff` `add` `restore` `commit` `log`).
 - ✅ `apps/cli` — playable readline game: mission select, Tab autocomplete, history,
   live objective checklist, arcade feedback, replay breakdown.
-- ⏳ `apps/web` — browser version (not built yet — see roadmap).
+- ✅ `apps/web` — browser version (React/Vite) reusing the **same core engine**:
+  terminal-center layout, live file tree, mission panel + next-step, Tab autocomplete,
+  objective checklist, and an arcade mini-map.
 - ⏳ Real sandbox mode (write missions to disk, watch real `nvim`/`git`).
 
 ## Quick start
@@ -35,11 +37,13 @@ check                   →  validate the mission
 pnpm install
 pnpm play            # launch the CLI, pick a mission from the menu
 pnpm play hero-copy-001   # or jump straight to a mission by id/number
+pnpm dev             # launch the browser version (Vite dev server)
 pnpm test            # run the core engine tests
 pnpm typecheck       # tsc across all packages
 ```
 
-Requires Node 22+ and pnpm 10+. The CLI runs `.ts` directly via `tsx` (no build step).
+Requires Node 22+ and pnpm 10+. The CLI runs `.ts` directly via `tsx` (no build step); the
+web app resolves the workspace packages straight to their TS source via Vite.
 
 ## How it fits together
 
@@ -58,7 +62,7 @@ terminal-invaders/
     missions/    @terminal-invaders/missions   ← mission content (JSON-ish TS)
   apps/
     cli/         @terminal-invaders/cli         ← readline front-end
-    web/         (planned) React/Vite front-end
+    web/         @terminal-invaders/web         ← React/Vite front-end
 ```
 
 ### The core loop
@@ -126,8 +130,9 @@ Built in the order the PRD recommends, adjusted to ship the useful part first.
 - [x] **Sprint 1 — Shared core.** Engine works headless, under test.
 - [x] **Sprint 3 (pulled forward) — CLI simulated shell.** Playable now. *(Prioritized over
   the browser because it's what's actually useful for daily terminal/LazyVim reps.)*
-- [ ] **Sprint 2 — Browser v2.** React/Vite app in `apps/web`: terminal-center layout, file
-  tree, mission panel + next-step, autocomplete, small arcade mini-map. Reuses `core` as-is.
+- [x] **Sprint 2 — Browser v2.** React/Vite app in `apps/web`: terminal-center layout, file
+  tree, mission panel + next-step, autocomplete, small arcade mini-map. Reuses `core` as-is —
+  the engine is imported unchanged, proving the shared-core architecture.
 - [~] **Sprint 4 — Mission pack.** LazyVim basics and Git safety tracks landed (with
   simulated nvim + git engines). Still to do: deepen each track toward the full 10-per-track
   curriculum.

@@ -1,0 +1,345 @@
+:root {
+  --bg: #0b0f14;
+  --panel: #11161d;
+  --panel-2: #0e131a;
+  --border: #1e2730;
+  --text: #c8d3de;
+  --dim: #6b7785;
+  --green: #5ef08a;
+  --cyan: #4fd6e8;
+  --magenta: #c98bff;
+  --yellow: #f2c45e;
+  --red: #ff6b6b;
+  --blue: #6aa6ff;
+  font-family: "JetBrains Mono", "SFMono-Regular", ui-monospace, "Cascadia Code", Menlo, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+}
+
+/* ── Mission picker ─────────────────────────────────────────── */
+.picker {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 64px 24px;
+}
+.logo {
+  font-size: 40px;
+  letter-spacing: 6px;
+  margin: 0;
+}
+.logo span {
+  color: var(--magenta);
+}
+.tagline {
+  color: var(--dim);
+  margin: 8px 0 32px;
+}
+.mission-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+.mission-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  transition: border-color 0.15s, transform 0.15s;
+}
+.mission-card:hover {
+  border-color: var(--cyan);
+  transform: translateY(-2px);
+}
+.card-title {
+  font-size: 15px;
+}
+.card-diff {
+  color: var(--yellow);
+}
+
+.track-badge {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #1b2530;
+  color: var(--cyan);
+}
+.track-badge.lazyvim {
+  color: var(--green);
+}
+.track-badge.git {
+  color: var(--yellow);
+}
+.track-badge.workflow {
+  color: var(--magenta);
+}
+.track-badge.search {
+  color: var(--blue);
+}
+
+/* ── Game layout ────────────────────────────────────────────── */
+.game {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  padding: 12px;
+  gap: 12px;
+}
+.hud {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 4px;
+}
+.hud-title {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+.hud-logo {
+  letter-spacing: 3px;
+  color: var(--magenta);
+  font-size: 13px;
+}
+.hud-mission {
+  color: var(--dim);
+  font-size: 13px;
+}
+.hud-score {
+  color: var(--yellow);
+  letter-spacing: 2px;
+}
+.back {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--dim);
+  cursor: pointer;
+  font: inherit;
+  padding: 6px 12px;
+}
+.back:hover {
+  color: var(--text);
+  border-color: var(--cyan);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 240px 1fr 300px;
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+.panel-title {
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--dim);
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* ── File tree ──────────────────────────────────────────────── */
+.tree-body {
+  overflow: auto;
+  padding: 6px 0;
+}
+.tree-row {
+  padding: 2px 8px;
+  white-space: nowrap;
+  color: var(--text);
+}
+.tree-icon {
+  color: var(--dim);
+  margin-right: 6px;
+}
+.tree-row.is-cwd {
+  background: rgba(79, 214, 232, 0.1);
+  color: var(--cyan);
+}
+.tree-row.is-active {
+  color: var(--green);
+}
+.here {
+  color: var(--cyan);
+  margin-left: 8px;
+  font-size: 11px;
+}
+
+/* ── Terminal ───────────────────────────────────────────────── */
+.terminal {
+  cursor: text;
+}
+.log {
+  flex: 1;
+  overflow: auto;
+  padding: 10px 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.log-line.input {
+  color: var(--text);
+}
+.log-prompt {
+  color: var(--green);
+}
+.log-line.output {
+  color: var(--text);
+}
+.log-line.good {
+  color: var(--green);
+}
+.log-line.bad {
+  color: var(--red);
+}
+.log-line.score {
+  color: var(--yellow);
+}
+.log-line.system {
+  color: var(--dim);
+}
+.input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-top: 1px solid var(--border);
+  padding: 8px 12px;
+}
+.prompt {
+  color: var(--blue);
+  white-space: nowrap;
+}
+.prompt.editor {
+  color: var(--magenta);
+}
+.cmd-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font: inherit;
+  caret-color: var(--green);
+}
+
+/* ── Mission panel ──────────────────────────────────────────── */
+.mission-body {
+  overflow: auto;
+  padding: 12px;
+}
+.briefing {
+  margin: 0 0 14px;
+  color: var(--text);
+  line-height: 1.5;
+}
+.next-step {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--cyan);
+  border-radius: 6px;
+  padding: 10px;
+  margin-bottom: 16px;
+}
+.next-label {
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--cyan);
+}
+.objectives {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.obj {
+  display: flex;
+  gap: 8px;
+  color: var(--text);
+}
+.obj.done {
+  color: var(--dim);
+  text-decoration: line-through;
+}
+.obj-box {
+  color: var(--dim);
+}
+.obj.done .obj-box {
+  color: var(--green);
+}
+
+/* ── Arcade strip ───────────────────────────────────────────── */
+.arcade {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 16px;
+}
+.minimap {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.lane {
+  display: flex;
+  gap: 14px;
+  font-size: 20px;
+}
+.invader {
+  color: var(--green);
+  transition: opacity 0.3s, transform 0.3s;
+}
+.invader.down {
+  color: var(--yellow);
+  opacity: 0.45;
+  transform: translateY(-3px);
+}
+.hud-stats {
+  display: flex;
+  gap: 20px;
+  color: var(--dim);
+  letter-spacing: 1px;
+  font-size: 12px;
+}
+.hud-stats b {
+  color: var(--text);
+}
