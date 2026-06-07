@@ -1,0 +1,19 @@
+{
+  "name": "@terminal-invaders/cli",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "terminal-invaders": "./src/index.ts"
+  },
+  "scripts": {
+    "play": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@terminal-invaders/core": "workspace:*",
+    "@terminal-invaders/missions": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2"
+  }
+}
