@@ -14,6 +14,20 @@ export type SessionState = {
   openedFiles: string[];
   /** Every search performed, with its results. */
   searches: { query: string; matches: SearchMatch[] }[];
+  /** Whether a simulated nvim editor is currently open. */
+  editorOpenPath?: string;
+  /** Normalized editor verbs used this run (e.g. ":w", "i", ":%s"). */
+  editorCommandsUsed: string[];
+  /** Patterns searched inside the editor this run. */
+  editorSearches: string[];
+  /** Git subcommands run this run (e.g. "status", "diff", "commit"). */
+  gitSubcommands: string[];
+  /** Number of commits made this run. */
+  gitCommits: number;
+  /** Paths with staged changes (index differs from HEAD). Mirrored from the git model. */
+  gitStagedPaths: string[];
+  /** Paths with unstaged/untracked changes. Mirrored from the git model. */
+  gitModifiedPaths: string[];
   completedObjectives: string[];
   score: number;
   combo: number;
@@ -35,6 +49,13 @@ export function createInitialState(mission: Mission): SessionState {
     commandsUsed: [],
     openedFiles: [],
     searches: [],
+    editorOpenPath: undefined,
+    editorCommandsUsed: [],
+    editorSearches: [],
+    gitSubcommands: [],
+    gitCommits: 0,
+    gitStagedPaths: [],
+    gitModifiedPaths: [],
     completedObjectives: [],
     score: 0,
     combo: 0,

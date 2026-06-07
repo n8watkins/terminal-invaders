@@ -33,6 +33,7 @@ describe("GameEngine — hero copy mission", () => {
     engine.execute("cd app");
     engine.execute('rg "Start now"');
     engine.execute("nvim page.tsx");
+    engine.execute(":q"); // leave the editor before running shell commands
     const result = engine.execute("check");
 
     expect(engine.state.complete).toBe(true);

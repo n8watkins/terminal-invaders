@@ -152,39 +152,26 @@ const rg: CommandSpec = {
   },
 };
 
+// `nvim` and `git` are intercepted by the engine (they need the editor / git
+// models). These specs exist only for autocomplete, help, and allow-list checks;
+// their handlers are never invoked.
+const enginePlaceholder = (name: string): CommandSpec["handler"] => () => ({
+  ok: true,
+  output: [`${name}: handled by the engine`],
+});
+
 const nvim: CommandSpec = {
   name: "nvim",
-  summary: "Open a file in nvim (simulated editor)",
+  summary: "Open a file in the simulated nvim editor",
   argType: "file",
-  handler: ({ args, state, fs }) => {
-    if (!args[0]) return { ok: false, output: ["nvim: open what? Try: nvim <file>"] };
-    const target = resolvePath(state.cwd, args[0]);
-    if (!fs.isFile(target)) {
-      const near = closestPath(fs, target);
-      return {
-        ok: false,
-        output: [
-          `nvim: cannot find "${args[0]}".`,
-          ...(near ? [`Did you mean: nvim ${near}`] : []),
-        ],
-        mistake: { kind: "bad_path", input: args[0], at: Date.now() },
-      };
-    }
-    return {
-      ok: true,
-      output: [
-        `── nvim ── ${basename(target)} ──`,
-        ...(fs.readFile(target) ?? "").split("\n"),
-        "(simulated buffer — :q to close, more vim missions coming)",
-      ],
-      statePatch: {
-        openedFiles: dedupe(state.openedFiles, target),
-        activeFile: target,
-        editorOpen: true,
-      },
-      events: [{ type: "open_file", path: target }],
-    };
-  },
+  handler: enginePlaceholder("nvim"),
+};
+
+const git: CommandSpec = {
+  name: "git",
+  summary: "git status/diff/add/restore/commit/log (simulated)",
+  argType: "none",
+  handler: enginePlaceholder("git"),
 };
 
 const tree: CommandSpec = {
@@ -213,7 +200,7 @@ function dedupe(list: string[], value: string): string[] {
 }
 
 /** Commands whose only job is to satisfy mission objectives / validation. */
-export const CORE_COMMANDS: CommandSpec[] = [pwd, ls, cd, cat, open, rg, nvim, tree];
+export const CORE_COMMANDS: CommandSpec[] = [pwd, ls, cd, cat, open, rg, nvim, git, tree];
 
 export { resolvePath, parentPath };
 export type { CommandResult };

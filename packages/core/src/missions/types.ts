@@ -52,7 +52,16 @@ export type Objective =
       expectedPath?: string;
     }
   | { id: string; label: string; type: "file_contains"; path: string; text: string }
-  | { id: string; label: string; type: "command_used"; command: string };
+  | { id: string; label: string; type: "file_lacks"; path: string; text: string }
+  | { id: string; label: string; type: "command_used"; command: string }
+  // Editor (LazyVim track)
+  | { id: string; label: string; type: "editor_command_used"; command: string }
+  | { id: string; label: string; type: "editor_search"; pattern: string }
+  // Git (Git-safety track)
+  | { id: string; label: string; type: "git_subcommand_used"; sub: string }
+  | { id: string; label: string; type: "git_staged"; path: string }
+  | { id: string; label: string; type: "git_clean"; path: string }
+  | { id: string; label: string; type: "git_committed" };
 
 export type Mission = {
   id: string;
@@ -62,6 +71,13 @@ export type Mission = {
   briefing: string;
   startingCwd: string;
   filesystem: Record<string, FsNode>;
+  /**
+   * Optional git track config. `head` is the committed snapshot (path -> content)
+   * at the start of the run. If a working-tree file's content differs from its
+   * head entry, the run begins with uncommitted changes (handy for "fix it" and
+   * "recover" missions).
+   */
+  git?: { head: Record<string, string> };
   objectives: Objective[];
   /** Optional whitelist. Empty/undefined = all known commands allowed. */
   allowedCommands?: string[];

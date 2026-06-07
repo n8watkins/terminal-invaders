@@ -21,7 +21,9 @@ check                   →  validate the mission
 
 - ✅ `packages/core` — virtual filesystem, command parser, resolver, autocomplete, objective
   validator, scoring, session engine. Fully unit-tested.
-- ✅ `packages/missions` — 4 starter missions across navigation / search / workflow tracks.
+- ✅ `packages/missions` — 10 missions across navigation / search / lazyvim / git / workflow.
+- ✅ Simulated **nvim** editor (i/esc/insert, `:w` `:q` `:wq`, `/search`, `:%s/old/new/g`, `dd`).
+- ✅ Simulated **git** (HEAD/index/working: `status` `diff` `add` `restore` `commit` `log`).
 - ✅ `apps/cli` — playable readline game: mission select, Tab autocomplete, history,
   live objective checklist, arcade feedback, replay breakdown.
 - ⏳ `apps/web` — browser version (not built yet — see roadmap).
@@ -85,12 +87,18 @@ arcade-y browser UI.
 
 ## The missions (current)
 
-| id              | title               | track       | teaches                          |
-| --------------- | ------------------- | ----------- | -------------------------------- |
-| `nav-001`       | Where Am I?         | navigation  | `pwd` + `ls` to orient           |
-| `nav-005`       | Up and Over         | navigation  | relative paths, `cd ../sibling`  |
-| `search-005`    | Hunt the Stale TODO | search      | `rg` to find by content          |
-| `hero-copy-001` | Find the Hero Copy  | workflow    | the full find→search→open→check  |
+| id              | title                  | track       | teaches                              |
+| --------------- | ---------------------- | ----------- | ------------------------------------ |
+| `nav-001`       | Where Am I?            | navigation  | `pwd` + `ls` to orient               |
+| `nav-005`       | Up and Over            | navigation  | relative paths, `cd ../sibling`      |
+| `search-005`    | Hunt the Stale TODO    | search      | `rg` to find by content              |
+| `lv-001`        | Open, Look, Leave      | lazyvim     | `nvim`, `/search`, `:q`              |
+| `lv-002`        | Save Your Work         | lazyvim     | `i` → type → `esc` → `:wq`           |
+| `git-001`       | What Changed?          | git         | `git status`, `git diff`             |
+| `git-005`       | Stage and Commit       | git         | `git add`, `git commit -m`          |
+| `lv-010`        | Replace the Copy       | lazyvim     | `:%s/old/new/g` (boss)              |
+| `git-009`       | Undo the Mistake       | git         | `git restore` to recover safely (boss) |
+| `hero-copy-001` | Find the Hero Copy     | workflow    | the full find→search→open→check      |
 
 ### Authoring a new mission
 
@@ -101,7 +109,15 @@ Add a `Mission` object (see `packages/missions/src/workflow/heroCopy.ts`) and re
 - `cwd_is` — player reached a directory
 - `file_opened` — player opened a file (via `open`/`cat`/`nvim`)
 - `search_performed` — player searched a query (optionally hitting an expected file)
-- `file_contains` — a file's contents include some text (for edit missions)
+- `file_contains` / `file_lacks` — a file's contents include / no longer include some text
+- `editor_command_used` — player used an nvim verb (`i`, `:w`, `:wq`, `:%s`, `dd`, …)
+- `editor_search` — player searched inside the editor with `/pattern`
+- `git_subcommand_used` — player ran a git subcommand (`status`, `diff`, …)
+- `git_staged` / `git_clean` / `git_committed` — git working-tree state
+
+For a git mission, add a `git: { head: { "<path>": "<committed content>" } }` block. If a
+file's working content (in `filesystem`) differs from its `head` entry, the run starts with
+uncommitted changes — perfect for "fix it" / "recover" missions.
 
 ## Roadmap
 
@@ -112,8 +128,9 @@ Built in the order the PRD recommends, adjusted to ship the useful part first.
   the browser because it's what's actually useful for daily terminal/LazyVim reps.)*
 - [ ] **Sprint 2 — Browser v2.** React/Vite app in `apps/web`: terminal-center layout, file
   tree, mission panel + next-step, autocomplete, small arcade mini-map. Reuses `core` as-is.
-- [ ] **Sprint 4 — Mission pack.** Fill out the tracks: 10 navigation, 10 search, LazyVim
-  basics, Git safety, workflow bosses.
+- [~] **Sprint 4 — Mission pack.** LazyVim basics and Git safety tracks landed (with
+  simulated nvim + git engines). Still to do: deepen each track toward the full 10-per-track
+  curriculum.
 - [ ] **Sprint 5 — Real sandbox mode.** `terminal-invaders start <mission> --real` writes a
   mission folder to `~/.terminal-invaders/runs/...`, you use your *real* Ghostty + nvim +
   git, and a file watcher validates. This is where real LazyVim practice happens. Always

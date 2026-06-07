@@ -35,6 +35,7 @@ async function chooseMission(arg?: string): Promise<Mission | undefined> {
 
 function buildCompleter(engine: GameEngine) {
   return (line: string): [string[], string] => {
+    if (engine.editorOpen) return [[], line]; // editor manages its own input
     const trailingSpace = /\s$/.test(line);
     const tokens = line.split(/\s+/).filter(Boolean);
     const current = trailingSpace ? "" : tokens[tokens.length - 1] ?? "";
@@ -75,7 +76,10 @@ async function playMission(mission: Mission): Promise<void> {
     historySize: 200,
   });
 
-  const ask = () => rl.setPrompt(prompt(engine.state.cwd));
+  const ask = () =>
+    rl.setPrompt(
+      engine.editorOpen ? c.magenta(`nvim:${engine.editorStatusLine() ?? ""} `) : prompt(engine.state.cwd),
+    );
 
   await new Promise<void>((resolve) => {
     ask();

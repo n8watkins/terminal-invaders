@@ -2,6 +2,9 @@ import { VirtualFs } from "../fs/virtualFs.ts";
 import { parseCommand } from "../commands/parser.ts";
 import { CORE_COMMANDS } from "../commands/registry.ts";
 import type { CommandResult, CommandSpec } from "../commands/types.ts";
+import { EditorModel } from "../editor/editor.ts";
+import { GitModel } from "../git/git.ts";
+import { resolvePath } from "../fs/pathUtils.ts";
 import type { Mission } from "../missions/types.ts";
 import { isObjectiveComplete } from "../missions/validator.ts";
 import { objectivePoints, POINTS, timeBonus } from "../scoring/scoring.ts";
@@ -25,6 +28,8 @@ export class GameEngine {
   readonly fs: VirtualFs;
   state: SessionState;
   private commands: Map<string, CommandSpec>;
+  private editor?: EditorModel;
+  private git?: GitModel;
 
   constructor(mission: Mission, extraCommands: CommandSpec[] = []) {
     this.mission = mission;
@@ -34,6 +39,19 @@ export class GameEngine {
     for (const spec of [...CORE_COMMANDS, ...extraCommands]) {
       if (this.isAllowed(spec.name)) this.commands.set(spec.name, spec);
     }
+    if (mission.git) {
+      this.git = new GitModel(mission.git.head);
+      this.syncGitMirrors();
+    }
+  }
+
+  /** Are we currently inside the simulated editor? (UIs use this to switch the prompt.) */
+  get editorOpen(): boolean {
+    return this.editor !== undefined;
+  }
+
+  editorStatusLine(): string | undefined {
+    return this.editor?.statusLine();
   }
 
   private isAllowed(name: string): boolean {
@@ -50,11 +68,27 @@ export class GameEngine {
   }
 
   execute(input: string): ExecuteResult {
+    // While the editor is open, every line is editor input (including ":q").
+    if (this.editor) {
+      this.state.commandHistory.push(input);
+      return this.runEditor(input);
+    }
+
     const parsed = parseCommand(input);
     if (parsed.name === "") return { output: [], events: [] };
 
     this.state.commandHistory.push(input);
     this.state.historyIndex = this.state.commandHistory.length;
+
+    // Engine-hosted commands that need state beyond the registry.
+    if (parsed.name === "nvim" && this.isAllowed("nvim")) {
+      this.markCommandUsed("nvim");
+      return this.openEditor(parsed.args[0]);
+    }
+    if (parsed.name === "git" && this.isAllowed("git")) {
+      this.markCommandUsed("git");
+      return this.runGit(parsed.args);
+    }
 
     // Meta commands handled by the engine itself.
     switch (parsed.name) {
@@ -170,6 +204,129 @@ export class GameEngine {
     };
   }
 
+  // ── Editor (LazyVim track) ───────────────────────────────────────────────
+
+  private openEditor(rawPath?: string): ExecuteResult {
+    if (!rawPath) return { output: ["nvim: open what? Try: nvim <file>"], events: [] };
+    const path = resolvePath(this.state.cwd, rawPath);
+    if (!this.fs.isFile(path)) {
+      const near = this.fs.allPaths().find((p) => p.endsWith(`/${rawPath}`));
+      this.recordMistake({ kind: "bad_path", input: rawPath, at: Date.now() });
+      return {
+        output: [`nvim: cannot find "${rawPath}".`, ...(near ? [`Did you mean: nvim ${near}`] : [])],
+        events: [{ type: "error", message: `nvim: ${rawPath}` }],
+      };
+    }
+    this.editor = new EditorModel(path, this.fs.readFile(path) ?? "");
+    this.state.editorOpenPath = path;
+    this.state.activeFile = path;
+    if (!this.state.openedFiles.includes(path)) this.state.openedFiles.push(path);
+
+    const events: GameEvent[] = [{ type: "open_file", path }];
+    this.detectObjectiveCompletions(events);
+    return {
+      output: [
+        `── nvim ── ${this.editor.statusLine()} ──`,
+        ...this.editor.lines.map((l, i) => `${String(i + 1).padStart(3)} ${l}`),
+        "(normal mode — `i` insert, `/text` search, `:%s/old/new/g` replace, `:wq` save+quit)",
+      ],
+      events,
+    };
+  }
+
+  private runEditor(input: string): ExecuteResult {
+    if (!this.editor) return { output: [], events: [] };
+    const step = this.editor.handle(input);
+
+    if (step.recordCommand && !this.state.editorCommandsUsed.includes(step.recordCommand)) {
+      this.state.editorCommandsUsed.push(step.recordCommand);
+    }
+    if (step.recordSearch) this.state.editorSearches.push(step.recordSearch);
+    if (step.write) {
+      this.fs.writeFile(this.editor.path, this.editor.content());
+      // A write happened — satisfy ":w" objectives whether the player used :w or :wq.
+      if (!this.state.editorCommandsUsed.includes(":w")) this.state.editorCommandsUsed.push(":w");
+      this.syncGitMirrors();
+    }
+
+    const events: GameEvent[] = [];
+    if (step.close) {
+      this.editor = undefined;
+      this.state.editorOpenPath = undefined;
+    }
+    this.detectObjectiveCompletions(events);
+    return { output: step.output, events };
+  }
+
+  // ── Git (Git-safety track) ───────────────────────────────────────────────
+
+  private syncGitMirrors(): void {
+    if (!this.git) return;
+    this.state.gitStagedPaths = this.git.stagedPaths();
+    this.state.gitModifiedPaths = this.git.modifiedPaths(this.fs);
+    this.state.gitCommits = this.git.commits.length;
+  }
+
+  private runGit(args: string[]): ExecuteResult {
+    if (!this.git) {
+      return { output: ["fatal: not a git repository"], events: [] };
+    }
+    const sub = args[0] ?? "";
+    if (sub && !this.state.gitSubcommands.includes(sub)) this.state.gitSubcommands.push(sub);
+    const rest = args.slice(1);
+    const output = this.dispatchGit(sub, rest);
+    this.syncGitMirrors();
+    const events: GameEvent[] = [];
+    this.detectObjectiveCompletions(events);
+    return { output, events };
+  }
+
+  private dispatchGit(sub: string, rest: string[]): string[] {
+    const git = this.git!;
+    const resolveArg = (a: string) => resolvePath(this.state.cwd, a);
+    switch (sub) {
+      case "status": {
+        const s = git.status(this.fs);
+        const lines: string[] = ["On branch main"];
+        if (s.staged.length) {
+          lines.push("Changes to be committed:");
+          lines.push(...s.staged.map((c) => `  ${c.kind}:   ${c.path}`));
+        }
+        if (s.modified.length) {
+          lines.push("Changes not staged for commit:");
+          lines.push(...s.modified.map((c) => `  ${c.kind}:   ${c.path}`));
+        }
+        if (s.untracked.length) {
+          lines.push("Untracked files:");
+          lines.push(...s.untracked.map((p) => `  ${p}`));
+        }
+        if (lines.length === 1) lines.push("nothing to commit, working tree clean");
+        return lines;
+      }
+      case "diff":
+        return git.diff(this.fs, rest.includes("--staged") || rest.includes("--cached"));
+      case "add": {
+        if (!rest.length) return ["Nothing specified. Try: git add <file>"];
+        return rest.map((a) => git.add(this.fs, resolveArg(a)).message).filter(Boolean);
+      }
+      case "restore": {
+        const staged = rest.includes("--staged");
+        const paths = rest.filter((a) => !a.startsWith("--"));
+        if (!paths.length) return ["restore: specify a file. Try: git restore <file>"];
+        return paths.map((a) => git.restore(this.fs, resolveArg(a), staged).message);
+      }
+      case "commit": {
+        const mIdx = rest.indexOf("-m");
+        const message = mIdx >= 0 ? rest.slice(mIdx + 1).join(" ") : "update";
+        return [git.commit(message).message];
+      }
+      case "log":
+        return git.log();
+      default:
+        return [`git: '${sub}' is not supported yet. Try: status, diff, add, restore, commit, log`];
+    }
+  }
+
   private runHint(): ExecuteResult {
     const idx = this.state.hintsUsed;
     const hint = this.mission.hints[idx];
@@ -207,8 +364,11 @@ export class GameEngine {
 
   reset(): void {
     this.state = createInitialState(this.mission);
+    this.editor = undefined;
     // Rebuild the filesystem so edits are undone.
     (this as { fs: VirtualFs }).fs = new VirtualFs(this.mission.filesystem);
+    this.git = this.mission.git ? new GitModel(this.mission.git.head) : undefined;
+    this.syncGitMirrors();
   }
 
   objectiveChecklist(): { id: string; label: string; complete: boolean }[] {

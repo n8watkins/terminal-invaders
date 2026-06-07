@@ -21,6 +21,27 @@ export function isObjectiveComplete(
       const content = fs.readFile(objective.path);
       return content !== undefined && content.includes(objective.text);
     }
+    case "file_lacks": {
+      const content = fs.readFile(objective.path);
+      return content !== undefined && !content.includes(objective.text);
+    }
+    case "editor_command_used":
+      return state.editorCommandsUsed.includes(objective.command);
+    case "editor_search": {
+      const needle = objective.pattern.toLowerCase();
+      return state.editorSearches.some((p) => p.toLowerCase().includes(needle));
+    }
+    case "git_subcommand_used":
+      return state.gitSubcommands.includes(objective.sub);
+    case "git_staged":
+      return state.gitStagedPaths.includes(objective.path);
+    case "git_clean":
+      return (
+        !state.gitStagedPaths.includes(objective.path) &&
+        !state.gitModifiedPaths.includes(objective.path)
+      );
+    case "git_committed":
+      return state.gitCommits > 0;
     case "search_performed": {
       const needle = objective.query.toLowerCase();
       return state.searches.some((s) => {
