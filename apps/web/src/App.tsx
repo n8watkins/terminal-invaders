@@ -6,17 +6,44 @@ import { MissionPanel } from "./components/MissionPanel.tsx";
 import { Terminal } from "./components/Terminal.tsx";
 import { MiniMap } from "./components/MiniMap.tsx";
 import { eventLines, line, type OutputLine } from "./lib/output.ts";
+import {
+  loadProgress,
+  recordCompletion,
+  type MissionProgress,
+  type ProgressMap,
+} from "./lib/progress.ts";
 
 const CLEAR_MARKER = "\x1b[CLEAR\x1b[";
 
 export function App() {
   const [mission, setMission] = useState<Mission | null>(null);
+  // Read persisted progress once; updates flow back via onComplete so the picker
+  // shows fresh ✓ badges after exiting a run, without a reload.
+  const [progress, setProgress] = useState<ProgressMap>(() => loadProgress());
 
-  if (!mission) return <MissionPicker onPick={setMission} />;
-  return <Game mission={mission} onExit={() => setMission(null)} key={mission.id} />;
+  const handleComplete = (missionId: string, score: number) => {
+    setProgress((prev) => recordCompletion(prev, missionId, score));
+  };
+
+  if (!mission) return <MissionPicker progress={progress} onPick={setMission} />;
+  // key={mission.id} keeps the per-mission remount-by-id behavior intact.
+  return (
+    <Game
+      mission={mission}
+      onExit={() => setMission(null)}
+      onComplete={handleComplete}
+      key={mission.id}
+    />
+  );
 }
 
-function MissionPicker({ onPick }: { onPick: (m: Mission) => void }) {
+function MissionPicker({
+  progress,
+  onPick,
+}: {
+  progress: ProgressMap;
+  onPick: (m: Mission) => void;
+}) {
   return (
     <div className="picker">
       <h1 className="logo">
@@ -24,19 +51,56 @@ function MissionPicker({ onPick }: { onPick: (m: Mission) => void }) {
       </h1>
       <p className="tagline">An arcade terminal trainer. Pick a mission and start the reps.</p>
       <div className="mission-grid">
-        {MISSIONS.map((m) => (
-          <button key={m.id} className="mission-card" onClick={() => onPick(m)}>
-            <span className={`track-badge ${m.track}`}>{m.track}</span>
-            <span className="card-title">{m.title}</span>
-            <span className="card-diff">{"★".repeat(m.difficulty)}</span>
-          </button>
-        ))}
+        {MISSIONS.map((m) => {
+          const done = progress[m.id]?.completed ?? false;
+          return (
+            <button
+              key={m.id}
+              className={`mission-card${done ? " completed" : ""}`}
+              onClick={() => onPick(m)}
+              style={{ position: "relative" }}
+            >
+              <span className={`track-badge ${m.track}`}>{m.track}</span>
+              {done ? <DoneBadge record={progress[m.id]} /> : null}
+              <span className="card-title">{m.title}</span>
+              <span className="card-diff">{"★".repeat(m.difficulty)}</span>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
 }
 
-function Game({ mission, onExit }: { mission: Mission; onExit: () => void }) {
+function DoneBadge({ record }: { record: MissionProgress | undefined }) {
+  // Inline-styled so this self-contained feature doesn't depend on shared CSS.
+  return (
+    <span
+      className="done-badge"
+      title={`Completed — best score ${record?.bestScore ?? 0}`}
+      style={{
+        position: "absolute",
+        top: 10,
+        right: 12,
+        fontSize: 13,
+        fontWeight: 700,
+        color: "#6ee7a8",
+      }}
+    >
+      ✓ {record?.bestScore ?? 0}
+    </span>
+  );
+}
+
+function Game({
+  mission,
+  onExit,
+  onComplete,
+}: {
+  mission: Mission;
+  onExit: () => void;
+  onComplete: (missionId: string, score: number) => void;
+}) {
   const engine = useMemo(() => new GameEngine(mission), [mission]);
   const [, force] = useReducer((x) => x + 1, 0);
   const [lines, setLines] = useState<OutputLine[]>(() => [
@@ -59,6 +123,12 @@ function Game({ mission, onExit }: { mission: Mission; onExit: () => void }) {
     for (const o of output) next.push(line("output", o));
     next.push(...eventLines(events));
     setLines((prev) => [...prev, ...next]);
+
+    // Persist progress on completion. We trust the event but guard on
+    // engine.state.complete so a stray event can't mark an unfinished run.
+    if (events.some((e) => e.type === "mission_complete") && engine.state.complete) {
+      onComplete(mission.id, engine.state.score);
+    }
     force();
   };
 
