@@ -30,11 +30,13 @@ export const cleanSlate: Mission = {
     { id: "authclean", label: "Restore auth.ts to the committed version", type: "git_clean", path: "/project/auth.ts" },
     { id: "noback", label: "Confirm the bypass hack is gone", type: "file_lacks", path: "/project/auth.ts", text: "TODO bypass" },
     { id: "authsafe", label: "Confirm real auth is back", type: "file_contains", path: "/project/auth.ts", text: "checkPassword(user)" },
+    // The only staged change to commit here is README, so git_committed both
+    // proves a commit happened and (with auth.ts restored, not committed) implies
+    // the docs shipped. We deliberately do NOT add git_clean(README): a
+    // file_contains on its text is true from the start (latches early), and in
+    // sandbox mode snapshotGit reports a committed-diverged file as "staged", so
+    // git_clean on a committed file is unsatisfiable there.
     { id: "committed", label: "Commit the README improvement", type: "git_committed" },
-    // git_clean (not file_contains) so this only flips once README is actually
-    // committed — a file_contains on its working text is true from the start and
-    // would latch before the player does anything.
-    { id: "docsshipped", label: "Confirm README is committed (clean tree)", type: "git_clean", path: "/project/README.md" },
     { id: "check", label: "Run check", type: "command_used", command: "check" },
   ],
   hints: [
