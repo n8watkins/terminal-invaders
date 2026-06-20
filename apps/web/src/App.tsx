@@ -1,4 +1,4 @@
-import { useMemo, useReducer, useState } from "react";
+import { useEffect, useMemo, useReducer, useState } from "react";
 import { GameEngine, type Mission } from "@terminal-invaders/core";
 import { MISSIONS } from "@terminal-invaders/missions";
 import { FileTree } from "./components/FileTree.tsx";
@@ -9,6 +9,7 @@ import { eventLines, line, type OutputLine } from "./lib/output.ts";
 import {
   loadProgress,
   recordCompletion,
+  saveProgress,
   type MissionProgress,
   type ProgressMap,
 } from "./lib/progress.ts";
@@ -20,6 +21,14 @@ export function App() {
   // Read persisted progress once; updates flow back via onComplete so the picker
   // shows fresh ✓ badges after exiting a run, without a reload.
   const [progress, setProgress] = useState<ProgressMap>(() => loadProgress());
+
+  // Persist as a side effect of state changing, not inside the updater — keeps
+  // the updater pure (no double-write under StrictMode). recordCompletion
+  // returns the same reference when nothing changed, so this only writes on a
+  // real update.
+  useEffect(() => {
+    saveProgress(progress);
+  }, [progress]);
 
   const handleComplete = (missionId: string, score: number) => {
     setProgress((prev) => recordCompletion(prev, missionId, score));

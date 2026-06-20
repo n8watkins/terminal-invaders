@@ -53,7 +53,8 @@ export function loadProgress(): ProgressMap {
   }
 }
 
-function saveProgress(map: ProgressMap): void {
+/** Persist the whole progress map. Never throws. Call from an effect, not a reducer. */
+export function saveProgress(map: ProgressMap): void {
   const store = safeStorage();
   if (!store) return;
   try {
@@ -64,8 +65,10 @@ function saveProgress(map: ProgressMap): void {
 }
 
 /**
- * Mark a mission complete, keeping the best (highest) score seen. Returns the
- * updated map so callers can refresh UI state without a re-read.
+ * Mark a mission complete, keeping the best (highest) score seen. Pure: returns
+ * the same reference when nothing changed (so it's safe inside a state updater),
+ * and returns a new map otherwise. Persistence is the caller's job (see
+ * `saveProgress`), keeping this free of side effects.
  */
 export function recordCompletion(
   prev: ProgressMap,
@@ -74,12 +77,10 @@ export function recordCompletion(
 ): ProgressMap {
   const existing = prev[missionId];
   const bestScore = Math.max(existing?.bestScore ?? 0, score);
-  // Skip the write if nothing changed (already complete and no new high score).
+  // Same reference when nothing changed (already complete and no new high score).
   if (existing?.completed && existing.bestScore >= bestScore) return prev;
-  const next: ProgressMap = {
+  return {
     ...prev,
     [missionId]: { completed: true, bestScore },
   };
-  saveProgress(next);
-  return next;
 }

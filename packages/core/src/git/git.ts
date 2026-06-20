@@ -138,8 +138,11 @@ export class GitModel {
  * lines (no header — the header is added by diff()).
  */
 function lineDiff(from: string, to: string): string[] {
-  const a = from.split("\n");
-  const b = to.split("\n");
+  // An empty side means the file was added (from="") or deleted (to=""), which
+  // has zero lines — not one blank line. "".split("\n") would yield [""] and
+  // emit a phantom -/+ blank line, so treat empty as no lines.
+  const a = from === "" ? [] : from.split("\n");
+  const b = to === "" ? [] : to.split("\n");
   const n = a.length;
   const m = b.length;
 

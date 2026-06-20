@@ -212,8 +212,10 @@ export async function runSandbox(mission: Mission): Promise<void> {
 
 /** Debounce window: a burst of writes from a save/format/`git add` collapses into one revalidation. */
 const WATCH_DEBOUNCE_MS = 200;
-/** Poll cadence when fs.watch is unavailable (recursive watch is flaky on WSL2). */
+/** Poll cadence when fs.watch is unavailable — the watcher isn't doing the work, so stay snappy. */
 const POLL_INTERVAL_MS = 1200;
+/** Slow safety poll kept alongside a working watcher, only to catch events fs.watch silently drops on WSL2. */
+const SAFETY_POLL_MS = 5000;
 
 /**
  * Block until `isDone()` returns true, re-running `render` whenever the project
@@ -248,9 +250,12 @@ function watchUntilComplete(run: SandboxRun, render: () => void, isDone: () => b
     };
 
     // Poll fallback: cheap for tiny missions and robust where fs.watch is flaky.
-    const startPolling = () => {
-      if (settled || pollTimer) return;
-      pollTimer = setInterval(revalidate, POLL_INTERVAL_MS);
+    // Re-callable with a different interval so a watcher error can upgrade the
+    // slow safety poll to the fast fallback cadence.
+    const startPolling = (interval: number) => {
+      if (settled) return;
+      if (pollTimer) clearInterval(pollTimer);
+      pollTimer = setInterval(revalidate, interval);
     };
 
     const onChange = () => {
@@ -267,13 +272,15 @@ function watchUntilComplete(run: SandboxRun, render: () => void, isDone: () => b
       watcher.on("error", () => {
         watcher?.close();
         watcher = undefined;
-        startPolling();
+        // Watcher died — switch the safety poll up to the fast fallback cadence.
+        startPolling(POLL_INTERVAL_MS);
       });
-      // Belt-and-suspenders: even a working watcher can silently drop events on
-      // WSL2, so run a slow poll alongside it to guarantee eventual completion.
-      startPolling();
+      // The watcher drives responsiveness; a slow poll runs alongside only as a
+      // safety net for events fs.watch silently drops on WSL2 (not the 1200ms
+      // hot loop the watcher exists to replace).
+      startPolling(SAFETY_POLL_MS);
     } catch {
-      startPolling();
+      startPolling(POLL_INTERVAL_MS);
     }
   });
 }
