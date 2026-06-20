@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { GameEngine } from "@terminal-invaders/core";
+import { findTodo } from "../src/search/findTodo.ts";
 import { firstGrep } from "../src/search/firstGrep.ts";
 import { searchThenOpen } from "../src/search/searchThenOpen.ts";
 import { theRightMatch } from "../src/search/theRightMatch.ts";
@@ -15,6 +16,13 @@ function play(e: GameEngine, inputs: string[]) {
 }
 
 describe("search track", () => {
+  it("solves search-005 (Hunt the Stale TODO)", () => {
+    const e = new GameEngine(findTodo);
+    play(e, ['rg "TODO"', "open src/auth.ts", "check"]);
+    expect(e.state.complete).toBe(true);
+    expect(e.state.openedFiles).toContain("/project/src/auth.ts");
+  });
+
   it("solves search-001 (First Grep)", () => {
     const e = new GameEngine(firstGrep);
     play(e, ['rg "fizzbuzz"', "check"]);

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { GameEngine } from "@terminal-invaders/core";
+import { inspectRoot } from "../src/navigation/inspectRoot.ts";
+import { relativePaths } from "../src/navigation/relativePaths.ts";
 import { lookAround } from "../src/navigation/lookAround.ts";
 import { stepInside } from "../src/navigation/stepInside.ts";
 import { readTheTree } from "../src/navigation/readTheTree.ts";
@@ -14,6 +16,19 @@ function play(e: GameEngine, inputs: string[]) {
 }
 
 describe("navigation track", () => {
+  it("solves nav-001 Where Am I?", () => {
+    const e = new GameEngine(inspectRoot);
+    play(e, ["pwd", "ls", "check"]);
+    expect(e.state.complete).toBe(true);
+  });
+
+  it("solves nav-005 Up and Over", () => {
+    const e = new GameEngine(relativePaths);
+    play(e, ["cd src/utils", "cd ../api", "open route.ts", "check"]);
+    expect(e.state.complete).toBe(true);
+    expect(e.state.cwd).toBe("/project/src/api");
+  });
+
   it("solves nav-002 Look Around", () => {
     const e = new GameEngine(lookAround);
     play(e, ["ls", "ls src", "cat README.md", "check"]);
