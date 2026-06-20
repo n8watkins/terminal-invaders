@@ -130,20 +130,46 @@ export class GitModel {
 }
 
 /**
- * A positional line diff: it compares line N to line N, not a real LCS. So an
- * inserted/removed line makes everything after it read as changed. That's fine
- * for the tiny teaching files here — don't reach for this as a general diff.
+ * An LCS-based line diff. We find the longest common subsequence of lines and
+ * emit only the lines that truly changed: `-` for lines removed from `from` and
+ * `+` for lines added in `to`, with shared lines suppressed. Unlike a positional
+ * compare, inserting or removing a single line no longer marks everything after
+ * it as changed. Same output shape callers rely on: a flat string[] of `-`/`+`
+ * lines (no header — the header is added by diff()).
  */
 function lineDiff(from: string, to: string): string[] {
   const a = from.split("\n");
   const b = to.split("\n");
-  const out: string[] = [];
-  const max = Math.max(a.length, b.length);
-  for (let i = 0; i < max; i++) {
-    if (a[i] === b[i]) continue;
-    if (a[i] !== undefined) out.push(`-${a[i]}`);
-    if (b[i] !== undefined) out.push(`+${b[i]}`);
+  const n = a.length;
+  const m = b.length;
+
+  // lcs[i][j] = length of the LCS of a[i..] and b[j..]. Build it bottom-up so we
+  // can then walk top-down to recover the alignment that maximizes shared lines.
+  const lcs: number[][] = Array.from({ length: n + 1 }, () => new Array<number>(m + 1).fill(0));
+  for (let i = n - 1; i >= 0; i--) {
+    for (let j = m - 1; j >= 0; j--) {
+      lcs[i][j] = a[i] === b[j] ? lcs[i + 1][j + 1] + 1 : Math.max(lcs[i + 1][j], lcs[i][j + 1]);
+    }
   }
+
+  const out: string[] = [];
+  let i = 0;
+  let j = 0;
+  while (i < n && j < m) {
+    if (a[i] === b[j]) {
+      // Shared line — suppress it.
+      i++;
+      j++;
+    } else if (lcs[i + 1][j] >= lcs[i][j + 1]) {
+      out.push(`-${a[i]}`);
+      i++;
+    } else {
+      out.push(`+${b[j]}`);
+      j++;
+    }
+  }
+  while (i < n) out.push(`-${a[i++]}`);
+  while (j < m) out.push(`+${b[j++]}`);
   return out;
 }
 
