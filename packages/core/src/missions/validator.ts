@@ -75,9 +75,31 @@ export function missingObjectives(
 }
 
 /**
- * Which objectives can be verified purely from the filesystem + git state on
- * disk (no command interception). These are the ones real-sandbox mode can check
- * while the player uses their own shell / nvim / git.
+ * Sandbox observability boundary.
+ *
+ * Real-sandbox mode (`pnpm play sandbox`) lets the player drive their own shell,
+ * nvim, and git, so the engine never sees their keystrokes — it can only score
+ * from what ends up on disk + in git. This function defines that boundary: it
+ * returns true ONLY for the 5 disk-observable objective kinds the sandbox watcher
+ * auto-checks:
+ *
+ *   - file_contains   (read the file back, look for the text)
+ *   - file_lacks      (read the file back, confirm the text is gone)
+ *   - git_staged      (index differs from HEAD)
+ *   - git_clean       (path matches HEAD: neither staged nor modified)
+ *   - git_committed   (a commit was made this run)
+ *
+ * The other 7 kinds are SIMULATOR-ONLY (no shell hook / history scrape exists),
+ * because they describe transient actions rather than a resulting disk state:
+ *
+ *   - cwd_is, file_opened, command_used, editor_command_used, editor_search,
+ *     git_subcommand_used, search_performed
+ *
+ * These are silently dropped from sandbox scoring. A mission is therefore
+ * sandbox-eligible only if it has >= 1 observable objective; one made entirely of
+ * non-observable kinds (e.g. pure navigation / search / editor-verb drills) is
+ * simulator-only, and that's fine. Mission authors who want a mission playable in
+ * the real sandbox must include at least one disk-observable objective above.
  */
 export function isSandboxObservable(objective: Objective): boolean {
   switch (objective.type) {

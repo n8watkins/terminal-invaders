@@ -103,6 +103,19 @@ arcade-y browser UI.
   `child_process`); **core stays environment-pure** and is reused for validation by reading the
   disk back into a `VirtualFs`.
 
+#### Sandbox observability
+
+Because the sandbox can only read disk + git state (no shell hook, no keystroke capture), it
+auto-checks **only the 5 disk-observable objective kinds**: `file_contains`, `file_lacks`,
+`git_staged`, `git_clean`, and `git_committed`. The other 7 — `cwd_is`, `file_opened`,
+`command_used`, `editor_command_used`, `editor_search`, `git_subcommand_used`, and
+`search_performed` — describe transient actions, not a resulting disk state, so they stay
+**simulator-only** and are silently dropped from sandbox scoring. The boundary is defined by
+`isSandboxObservable` in `packages/core/src/missions/validator.ts`. A mission is therefore
+**sandbox-eligible only if it has at least one disk-observable objective**; a mission made
+entirely of non-observable kinds (pure navigation / search / editor-verb drills) is
+simulator-only, which is fine.
+
 ## The missions (current)
 
 | id              | title                  | track       | teaches                              |
