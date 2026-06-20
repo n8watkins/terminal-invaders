@@ -2,7 +2,8 @@ import { execFileSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
-import { replaceCopy, stageAndCommit, undoTheMistake } from "@terminal-invaders/missions";
+import { cleanSlate, replaceCopy, stageAndCommit, undoTheMistake } from "@terminal-invaders/missions";
+import type { Mission } from "@terminal-invaders/core";
 import * as os from "node:os";
 import { assertSafe, createSandbox, sandboxEligible, validateSandbox } from "../src/sandbox.ts";
 
@@ -59,6 +60,47 @@ describe("real-sandbox mode", () => {
     g(run.projectDir, ["add", "greet.ts"]);
     g(run.projectDir, ["commit", "-m", "improve"]);
     expect(allDone(stageAndCommit, run)).toBe(true); // staged-or-committed keeps git_staged true
+  });
+
+  it.runIf(hasGit)("git-010 is winnable in sandbox: restore the bad file, commit the good one", () => {
+    const run = createSandbox(cleanSlate);
+    cleanup.push(run.runDir);
+    expect(allDone(cleanSlate, run)).toBe(false);
+
+    g(run.projectDir, ["restore", "auth.ts"]); // discard the hack
+    g(run.projectDir, ["add", "README.md"]);
+    g(run.projectDir, ["commit", "-m", "ship docs"]); // commit the docs
+    expect(allDone(cleanSlate, run)).toBe(true);
+  });
+
+  it.runIf(hasGit)("does not crash on an empty git.head, and player commits still register", () => {
+    const emptyHead = {
+      id: "test-empty-head",
+      title: "t",
+      difficulty: 1,
+      track: "git",
+      briefing: "",
+      startingCwd: "/project",
+      filesystem: {
+        "/project": { type: "dir" },
+        "/project/notes.txt": { type: "file", content: "hi" },
+      },
+      git: { head: {} },
+      objectives: [
+        { id: "committed", label: "commit", type: "git_committed" },
+        { id: "check", label: "check", type: "command_used", command: "check" },
+      ],
+      hints: [{ text: "h" }],
+      successMessage: "ok",
+    } satisfies Mission;
+
+    const run = createSandbox(emptyHead); // would throw before --allow-empty
+    cleanup.push(run.runDir);
+    expect(allDone(emptyHead, run)).toBe(false); // baseline commit doesn't count as the player's
+
+    g(run.projectDir, ["add", "-A"]);
+    g(run.projectDir, ["commit", "-m", "work"]);
+    expect(allDone(emptyHead, run)).toBe(true);
   });
 
   it("refuses to operate outside the sandbox base", () => {

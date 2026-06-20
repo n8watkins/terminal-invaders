@@ -52,15 +52,26 @@ export function createSandbox(mission: Mission): SandboxRun {
   assertSafe(runDir);
   const projectDir = diskPath(runDir, VROOT);
 
+  // Resolve a virtual path to disk and refuse anything that escapes the run dir
+  // (a mission key containing ".." must not write outside its sandbox).
+  const safeDisk = (vpath: string): string => {
+    const target = path.resolve(diskPath(runDir, vpath));
+    const root = path.resolve(runDir);
+    if (target !== root && !target.startsWith(root + path.sep)) {
+      throw new Error(`refusing to write outside the run dir: ${target}`);
+    }
+    return target;
+  };
+
   const writeVirtual = (vpath: string, content: string) => {
-    const target = diskPath(runDir, vpath);
+    const target = safeDisk(vpath);
     fs.mkdirSync(path.dirname(target), { recursive: true });
     fs.writeFileSync(target, content);
   };
 
   // Create directories first.
   for (const [vpath, node] of Object.entries(mission.filesystem)) {
-    if (node.type === "dir") fs.mkdirSync(diskPath(runDir, vpath), { recursive: true });
+    if (node.type === "dir") fs.mkdirSync(safeDisk(vpath), { recursive: true });
   }
 
   const hasGit = Boolean(mission.git) && gitAvailable();
@@ -72,7 +83,9 @@ export function createSandbox(mission: Mission): SandboxRun {
     git(projectDir, ["config", "user.email", "player@terminal-invaders.local"]);
     git(projectDir, ["config", "user.name", "Player"]);
     git(projectDir, ["add", "-A"]);
-    git(projectDir, ["commit", "-q", "-m", "init"]);
+    // --allow-empty so a mission with an empty git.head still gets the baseline
+    // commit (otherwise `git commit` errors on "nothing to commit" and crashes setup).
+    git(projectDir, ["commit", "-q", "--allow-empty", "-m", "init"]);
   }
 
   // 2. Write the working-tree content (overwrites HEAD where the mission starts dirty).
@@ -112,17 +125,19 @@ function snapshotGit(run: SandboxRun, mission: Mission): GitSnapshot {
   if (!run.hasGit) return { stagedPaths: [], modifiedPaths: [], commits: 0 };
   const staged = new Set<string>();
   const modified: string[] = [];
-  const porcelain = git(run.projectDir, ["status", "--porcelain=v1"]);
-  for (const raw of porcelain.split("\n")) {
-    if (!raw.trim()) continue;
-    const index = raw[0];
-    const work = raw[1];
-    let file = raw.slice(3).trim();
-    // Renames/copies report "old -> new"; the new path is what's on disk. No
-    // mission renames today, but parse it correctly rather than mangling it.
-    if ((index === "R" || index === "C") && file.includes(" -> ")) {
-      file = file.split(" -> ")[1] ?? file;
-    }
+  // -z gives NUL-separated entries with LITERAL, unquoted paths, so a filename
+  // with spaces or non-ASCII isn't mangled by quoting/escaping or .trim().
+  const porcelain = git(run.projectDir, ["status", "--porcelain=v1", "-z"]);
+  const tokens = porcelain.split("\0");
+  for (let i = 0; i < tokens.length; i++) {
+    const entry = tokens[i];
+    if (!entry) continue;
+    const index = entry[0];
+    const work = entry[1];
+    const file = entry.slice(3); // "XY <path>" — path is literal in -z mode
+    // Renames/copies emit the OLD path as the next NUL token; the entry path is
+    // the new one (what's on disk), so consume and ignore the old.
+    if (index === "R" || index === "C") i++;
     const vpath = toVirtual(file);
     if (index !== " " && index !== "?") staged.add(vpath);
     if (work !== " " || index === "?") modified.push(vpath);
