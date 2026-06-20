@@ -116,20 +116,19 @@ auto-checks **only the 5 disk-observable objective kinds**: `file_contains`, `fi
 entirely of non-observable kinds (pure navigation / search / editor-verb drills) is
 simulator-only, which is fine.
 
-## The missions (current)
+## The missions
 
-| id              | title                  | track       | teaches                              |
-| --------------- | ---------------------- | ----------- | ------------------------------------ |
-| `nav-001`       | Where Am I?            | navigation  | `pwd` + `ls` to orient               |
-| `nav-005`       | Up and Over            | navigation  | relative paths, `cd ../sibling`      |
-| `search-005`    | Hunt the Stale TODO    | search      | `rg` to find by content              |
-| `lv-001`        | Open, Look, Leave      | lazyvim     | `nvim`, `/search`, `:q`              |
-| `lv-002`        | Save Your Work         | lazyvim     | `i` → type → `esc` → `:wq`           |
-| `git-001`       | What Changed?          | git         | `git status`, `git diff`             |
-| `git-005`       | Stage and Commit       | git         | `git add`, `git commit -m`          |
-| `lv-010`        | Replace the Copy       | lazyvim     | `:%s/old/new/g` (boss)              |
-| `git-009`       | Undo the Mistake       | git         | `git restore` to recover safely (boss) |
-| `hero-copy-001` | Find the Hero Copy     | workflow    | the full find→search→open→check      |
+**50 missions across 5 tracks** (10 each), each ramping difficulty 1 → 2 → 3 and ending in a
+"boss" that's a real end-to-end task. The full ordered campaign lives in
+`packages/missions/src/index.ts`.
+
+| track       | ids                          | teaches                                                    | boss                                  |
+| ----------- | ---------------------------- | ---------------------------------------------------------- | ------------------------------------- |
+| navigation  | `nav-001` … `nav-010`        | `pwd`/`ls`/`cd`, relative paths, `tree`, deep chains       | `nav-010` Survey the Codebase         |
+| search      | `search-001` … `search-010`  | `rg` by content, exact-symbol vs substring, triage hits    | `search-010` Track Down the Bug       |
+| lazyvim     | `lv-001` … `lv-010`          | `nvim` loop, insert/`dd`/`:w`, `/search`, `:%s`            | `lv-010` Replace the Copy             |
+| git         | `git-001` … `git-010`        | `status`/`diff`/`add`/`commit`/`restore`, recover & ship   | `git-010` Clean Slate                 |
+| workflow    | `hero-copy-001`, `workflow-002` … `workflow-010` | cross-track chains: navigate → search → edit → commit | `workflow-010` Ship a Tiny Feature    |
 
 ### Authoring a new mission
 
