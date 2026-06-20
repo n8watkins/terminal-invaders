@@ -78,7 +78,10 @@ export class EditorModel {
     if (cmd === "dd") {
       if (this.lines.length > 0) {
         this.lines.splice(this.cursor, 1);
-        this.cursor = Math.min(this.cursor, this.lines.length - 1);
+        // A buffer always has at least one line (deleting the last leaves a blank),
+        // and the cursor must stay a valid index — never -1.
+        if (this.lines.length === 0) this.lines.push("");
+        this.cursor = Math.max(0, Math.min(this.cursor, this.lines.length - 1));
         this.dirty = true;
       }
       return { output: [], recordCommand: "dd" };
@@ -132,7 +135,9 @@ export class EditorModel {
     const idx = this.lines.findIndex((l, i) => i > this.cursor && l.toLowerCase().includes(needle));
     const wrapped = idx === -1 ? this.lines.findIndex((l) => l.toLowerCase().includes(needle)) : idx;
     if (wrapped === -1) {
-      return { output: [`E486: Pattern not found: ${pattern}`], recordSearch: pattern };
+      // Don't record a search that matched nothing — an editor_search objective
+      // should require the player to actually find the pattern.
+      return { output: [`E486: Pattern not found: ${pattern}`] };
     }
     this.cursor = wrapped;
     return {

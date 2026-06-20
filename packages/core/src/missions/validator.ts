@@ -46,6 +46,8 @@ export function isObjectiveComplete(
       const needle = objective.query.toLowerCase();
       return state.searches.some((s) => {
         if (!s.query.toLowerCase().includes(needle)) return false;
+        // A search that found nothing isn't a meaningful "search performed".
+        if (s.matches.length === 0) return false;
         if (!objective.expectedPath) return true;
         return s.matches.some((m) => m.path === objective.expectedPath);
       });

@@ -78,12 +78,16 @@ export class GameEngine {
     const parsed = parseCommand(input);
     if (parsed.name === "") return { output: [], events: [] };
 
+    // Start the clock on the first real command, not at construction time, so a
+    // player reading the briefing doesn't lose the time bonus before they act.
+    if (this.state.commandHistory.length === 0) this.state.startedAt = Date.now();
+
     this.state.commandHistory.push(input);
     this.state.historyIndex = this.state.commandHistory.length;
 
-    // Engine-hosted commands that need state beyond the registry.
+    // Engine-hosted commands that need state beyond the registry. nvim is marked
+    // used inside openEditor, only when the file actually opens.
     if (parsed.name === "nvim" && this.isAllowed("nvim")) {
-      this.markCommandUsed("nvim");
       return this.openEditor(parsed.args[0]);
     }
     if (parsed.name === "git" && this.isAllowed("git")) {
@@ -126,7 +130,8 @@ export class GameEngine {
       mission: this.mission,
     });
 
-    this.markCommandUsed(parsed.name);
+    // Only a successful command counts toward command_used objectives.
+    if (result.ok) this.markCommandUsed(parsed.name);
     const events = this.applyResult(result);
     return { output: result.output, events };
   }
@@ -137,14 +142,20 @@ export class GameEngine {
 
     if (result.statePatch) Object.assign(this.state, result.statePatch);
 
-    if (result.mistake) {
-      this.recordMistake(result.mistake);
-      this.state.combo = 0;
-    }
+    if (result.mistake) this.recordMistake(result.mistake);
 
-    // Reward first-time searches (a behavior we want to build).
-    if (result.events?.some((e) => e.type === "search")) {
-      this.award(POINTS.searchBonus, "search", events);
+    // Reward the FIRST time each distinct query is searched AND actually finds
+    // something, so repeating the same `rg` (or searching for nothing) can't farm
+    // the bonus. state.searches already includes this search (statePatch applied
+    // above), so a brand-new query appears exactly once.
+    for (const e of result.events ?? []) {
+      if (e.type !== "search" || e.matches.length === 0) continue;
+      // Count only prior MATCHING searches of this query, so an earlier empty
+      // search (before the file had the text) doesn't suppress the bonus on the
+      // genuine first hit — while repeats of a matching query still can't farm it.
+      const firstMatchForQuery =
+        this.state.searches.filter((s) => s.query === e.query && s.matches.length > 0).length === 1;
+      if (firstMatchForQuery) this.award(POINTS.searchBonus, "search", events);
     }
 
     this.detectObjectiveCompletions(events);
@@ -167,6 +178,7 @@ export class GameEngine {
 
   private runCheck(): ExecuteResult {
     const events: GameEvent[] = [];
+    this.state.checksRun += 1;
     this.detectObjectiveCompletions(events);
 
     // Objectives latch: transient conditions (like `cwd_is`) count once passed,
@@ -175,8 +187,9 @@ export class GameEngine {
       (o) => !this.state.completedObjectives.includes(o.id),
     );
     if (missing.length > 0) {
-      // Repeated premature checks are a (small) mistake.
-      if (this.state.commandsUsed.filter((c) => c === "check").length > 1) {
+      // Repeated premature checks are a (small) mistake. The first exploratory
+      // check is free; spamming check while still incomplete is penalized.
+      if (this.state.checksRun > 1) {
         this.recordMistake({ kind: "premature_check", input: "check", at: Date.now() });
       }
       return {
@@ -218,6 +231,8 @@ export class GameEngine {
         events: [{ type: "error", message: `nvim: ${rawPath}` }],
       };
     }
+    // The file opened — now it counts as an nvim invocation.
+    this.markCommandUsed("nvim");
     this.editor = new EditorModel(path, this.fs.readFile(path) ?? "");
     this.state.editorOpenPath = path;
     this.state.activeFile = path;
@@ -354,6 +369,9 @@ export class GameEngine {
   private recordMistake(mistake: Mistake): void {
     this.state.mistakes.push(mistake);
     this.state.score = Math.max(0, this.state.score - POINTS.mistakePenalty);
+    // Any mistake breaks the combo — wherever it's recorded from (registry result,
+    // unknown command, bad nvim path, premature check).
+    this.state.combo = 0;
   }
 
   noteAutocompleteUsed(): void {

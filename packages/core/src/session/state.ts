@@ -34,6 +34,9 @@ export type SessionState = {
   hintsUsed: number;
   mistakes: Mistake[];
   usedAutocomplete: boolean;
+  /** Number of times `check` has been run (for repeated-premature-check detection). */
+  checksRun: number;
+  /** Set to Date.now() on the first real command, so think time before play doesn't burn the time bonus. */
   startedAt: number;
   endedAt?: number;
   complete: boolean;
@@ -62,6 +65,7 @@ export function createInitialState(mission: Mission): SessionState {
     hintsUsed: 0,
     mistakes: [],
     usedAutocomplete: false,
+    checksRun: 0,
     startedAt: Date.now(),
     endedAt: undefined,
     complete: false,
