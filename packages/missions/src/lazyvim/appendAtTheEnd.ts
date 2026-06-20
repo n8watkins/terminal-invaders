@@ -16,7 +16,7 @@ export const appendAtTheEnd: Mission = {
     },
   },
   objectives: [
-    { id: "open-below", label: "Open a new line below (o or A)", type: "editor_command_used", command: "i" },
+    { id: "open-below", label: "Enter insert mode to append (o or A)", type: "editor_command_used", command: "i" },
     {
       id: "typed",
       label: 'Add a line containing "v1.1.0"',

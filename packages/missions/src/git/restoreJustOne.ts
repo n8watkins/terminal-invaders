@@ -26,10 +26,14 @@ export const restoreJustOne: Mission = {
     },
   },
   objectives: [
+    // Note: there's no "file is still dirty" objective to assert copy.ts was left
+    // alone — and a file_contains on its working text would be true from the start
+    // and latch immediately (an inert guard). So we verify the part that actually
+    // requires targeted action — colors.ts restored — and teach "just one" via the
+    // two-dirty-file setup and the briefing.
     { id: "status", label: "See both modified files (git status)", type: "git_subcommand_used", sub: "status" },
     { id: "clean", label: "Restore colors.ts to the committed version", type: "git_clean", path: "/project/colors.ts" },
     { id: "colorback", label: "Confirm the original color is back", type: "file_contains", path: "/project/colors.ts", text: "#0066ff" },
-    { id: "kept", label: "Keep the headline edit in copy.ts", type: "file_contains", path: "/project/copy.ts", text: "Welcome back" },
     { id: "check", label: "Run check", type: "command_used", command: "check" },
   ],
   hints: [

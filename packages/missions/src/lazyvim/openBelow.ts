@@ -13,7 +13,7 @@ export const openBelow: Mission = {
     "/project/team.md": { type: "file", content: "# Team\n- Alex\n- Sam" },
   },
   objectives: [
-    { id: "open-below", label: "Open a new line below the cursor (o)", type: "editor_command_used", command: "i" },
+    { id: "open-below", label: "Enter insert mode (o opens a line below)", type: "editor_command_used", command: "i" },
     {
       id: "typed",
       label: 'Add a line containing "Dana"',

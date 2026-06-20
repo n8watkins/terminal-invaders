@@ -20,7 +20,7 @@ export const refactorPass: Mission = {
   objectives: [
     { id: "find", label: 'Search to the deprecated line (/legacyFetch)', type: "editor_search", pattern: "legacyFetch" },
     { id: "delete", label: "Delete the line (dd)", type: "editor_command_used", command: "dd" },
-    { id: "insert", label: "Open a new line and insert (o)", type: "editor_command_used", command: "i" },
+    { id: "insert", label: "Enter insert mode to add the line (o)", type: "editor_command_used", command: "i" },
     {
       id: "removed",
       label: 'File no longer contains "legacyFetch"',

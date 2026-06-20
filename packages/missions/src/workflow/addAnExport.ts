@@ -27,7 +27,7 @@ export const addAnExport: Mission = {
       expectedPath: "/project/src/lib/helpers.ts",
     },
     { id: "open-helpers", label: "Open helpers.ts in nvim", type: "file_opened", path: "/project/src/lib/helpers.ts" },
-    { id: "insert", label: "Open a new line (o) and type the export", type: "editor_command_used", command: "i" },
+    { id: "insert", label: "Enter insert mode to add the export (o)", type: "editor_command_used", command: "i" },
     { id: "exported", label: "File now exports slugify", type: "file_contains", path: "/project/src/lib/helpers.ts", text: "export const slugify" },
     { id: "saved", label: "Save the file (:w or :wq)", type: "editor_command_used", command: ":w" },
     { id: "check", label: "Run check", type: "command_used", command: "check" },
