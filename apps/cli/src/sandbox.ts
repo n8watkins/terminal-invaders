@@ -165,9 +165,7 @@ export function sandboxEligible(mission: Mission): boolean {
   return mission.objectives.some(isSandboxObservable);
 }
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-/** Set up the sandbox, print instructions, then poll until objectives are met. */
+/** Set up the sandbox, print instructions, then watch until objectives are met. */
 export async function runSandbox(mission: Mission): Promise<void> {
   if (!sandboxEligible(mission)) {
     console.log(
@@ -206,13 +204,76 @@ export async function runSandbox(mission: Mission): Promise<void> {
   for (const o of mission.objectives.filter(isSandboxObservable)) console.log(`  ${c.gray("□")} ${o.label}`);
   console.log(c.dim("\nWatching for changes… (Ctrl+C to stop)\n"));
 
-  // Poll the filesystem; cheap for tiny missions and lets the player work freely.
-  while (completed.size < total) {
-    render();
-    if (completed.size >= total) break;
-    await sleep(1200);
-  }
+  await watchUntilComplete(run, render, () => completed.size >= total);
 
   console.log(`\n${c.green(c.bold("★ MISSION COMPLETE ★"))}  ${mission.successMessage}`);
   console.log(c.dim(`Sandbox left in place for inspection: ${run.projectDir}`));
+}
+
+/** Debounce window: a burst of writes from a save/format/`git add` collapses into one revalidation. */
+const WATCH_DEBOUNCE_MS = 200;
+/** Poll cadence when fs.watch is unavailable (recursive watch is flaky on WSL2). */
+const POLL_INTERVAL_MS = 1200;
+
+/**
+ * Block until `isDone()` returns true, re-running `render` whenever the project
+ * tree changes. Prefers an event-driven recursive `fs.watch`; falls back to a
+ * fixed-interval poll when fs.watch throws (or a recursive watch isn't
+ * supported — common on WSL2/network mounts). Either way `render` latches the
+ * caller's `completed` Set, so we never miss a stage→commit that lands between
+ * two ticks.
+ */
+function watchUntilComplete(run: SandboxRun, render: () => void, isDone: () => boolean): Promise<void> {
+  render();
+  if (isDone()) return Promise.resolve();
+
+  return new Promise<void>((resolve) => {
+    let watcher: fs.FSWatcher | undefined;
+    let debounceTimer: ReturnType<typeof setTimeout> | undefined;
+    let pollTimer: ReturnType<typeof setInterval> | undefined;
+    let settled = false;
+
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      if (debounceTimer) clearTimeout(debounceTimer);
+      if (pollTimer) clearInterval(pollTimer);
+      watcher?.close();
+      resolve();
+    };
+
+    const revalidate = () => {
+      render();
+      if (isDone()) finish();
+    };
+
+    // Poll fallback: cheap for tiny missions and robust where fs.watch is flaky.
+    const startPolling = () => {
+      if (settled || pollTimer) return;
+      pollTimer = setInterval(revalidate, POLL_INTERVAL_MS);
+    };
+
+    const onChange = () => {
+      if (settled) return;
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(revalidate, WATCH_DEBOUNCE_MS);
+    };
+
+    try {
+      // Watch the on-disk project tree recursively. `recursive` is unsupported
+      // on some platforms (throws ERR_FEATURE_UNAVAILABLE_ON_PLATFORM) and is
+      // unreliable on WSL2, so we keep polling as a safety net regardless.
+      watcher = fs.watch(run.projectDir, { recursive: true }, onChange);
+      watcher.on("error", () => {
+        watcher?.close();
+        watcher = undefined;
+        startPolling();
+      });
+      // Belt-and-suspenders: even a working watcher can silently drop events on
+      // WSL2, so run a slow poll alongside it to guarantee eventual completion.
+      startPolling();
+    } catch {
+      startPolling();
+    }
+  });
 }
