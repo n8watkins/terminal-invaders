@@ -1,16 +1,41 @@
 # Terminal Invaders — Status
 
 A working snapshot of what's built and what's left. The README is the pitch + how-it-works;
-this file is the build tracker. Last updated 2026-06-20.
+this file is the build tracker. Last updated 2026-06-27.
 
 ## TL;DR
 
 The full vertical slice is done and green: a shared engine drives a playable CLI, a browser
-app, **and** a real-sandbox mode. **All five PRD sprints have landed, including Sprint 4** —
-the curriculum is filled out to its designed depth of **5 tracks × 10 missions = 50**.
+app, **and** a real-sandbox mode. All five PRD sprints landed (5 tracks × 10 missions = 50),
+and on top of that the **v2 "next level" work** is now in too: every command teaches what it
+IS, the 50 missions regroup into selectable learning paths, and a new **shared-world journey**
+system carries one evolving project across steps with save/resume — plus three new command
+domains (modern CLI tools, PowerShell, fzf).
 
-- **86 tests passing**, typecheck clean across all 4 projects.
+- **149 tests passing**, typecheck clean across all 4 projects; web build clean.
 - Run: `pnpm play` (CLI) · `pnpm play sandbox` (real mode) · `pnpm dev` (web) · `pnpm test` · `pnpm typecheck`
+
+## v2 — "take it to the next level" (done)
+
+1. **Teach the commands.** `explain <name>` shows a full lesson card for any command, editor
+   verb, or git subcommand — *what kind of thing it is* (shell builtin vs coreutil vs external
+   tool you install vs git subcommand vs PowerShell cmdlet), where it comes from, usage, a
+   plain-English explanation, and examples. `help` now groups by kind. Lessons live in
+   `packages/core/src/{commands,editor,git}/lessons.ts`, resolved via `lessons/registry.ts`. A
+   per-mission "new here" concepts panel (CLI + web) surfaces the commands a mission introduces.
+2. **Selectable learning paths.** The flat 50-mission campaign regroups into 5 ordered,
+   pickable paths (`packages/missions/src/paths.ts`). Both front-ends now open on a path picker
+   → mission list → play, with per-path progress.
+3. **Shared persistent world (journeys).** `PathSession` (`core/src/session/journey.ts`) runs
+   an ordered set of steps over ONE evolving world: what you change in step N is there in N+1
+   (the commit you make shows up in the next step's `git log`). Declarative per-step world
+   mutations script the storyline; `JourneySnapshot` serializes the whole world for save/resume
+   (CLI → `~/.terminal-invaders/saves/`, web → localStorage). Four journeys ship:
+   `journey-git-safety`, `journey-modern-tools`, `journey-powershell`, `journey-fzf`.
+4. **New domains.** Environment-aware command selection (`commandsForMission`) serves the right
+   set per mission/journey: PowerShell cmdlets (`Get-ChildItem`/`Set-Location`/`Select-String`,
+   each teaching its bash twin), modern CLI tools (`bat`/`eza`/`zoxide z`/`jq`), and a fuzzy
+   finder (`fzf`). New command sets live in `core/src/commands/{powershell,modernTools,fzf}.ts`.
 
 ## Done
 

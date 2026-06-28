@@ -17,7 +17,11 @@ check                   →  validate the mission
 
 ## Status
 
-**Vertical slice working** — shared engine + a playable CLI, validated end-to-end.
+**Vertical slice working + v2 depth** — shared engine, a playable CLI, a browser app, and a
+real-sandbox mode. On top of the 50-mission campaign, v2 adds: every command **explains what it
+is** (`explain <name>`), the missions regroup into **selectable learning paths**, a
+**shared-world journey** system carries one evolving project across steps with save/resume, and
+three new command domains (**modern CLI tools, PowerShell, fzf**). 149 tests, typecheck clean.
 
 - ✅ `packages/core` — virtual filesystem, command parser, resolver, autocomplete, objective
   validator, scoring, session engine. Fully unit-tested.
@@ -36,14 +40,19 @@ check                   →  validate the mission
 
 ```bash
 pnpm install
-pnpm play            # launch the CLI, pick a mission from the menu
-pnpm play hero-copy-001   # or jump straight to a mission by id/number
-pnpm dev             # launch the browser version (Vite dev server)
-pnpm play sandbox            # REAL mode: pick a sandbox mission
-pnpm play sandbox git-009    # REAL mode: jump straight to one
-pnpm test            # run the core engine + sandbox tests
-pnpm typecheck       # tsc across all packages
+pnpm play                     # launch the CLI: pick a learning path or a journey
+pnpm play hero-copy-001       # jump straight to a mission by id/number
+pnpm play journey-git-safety  # play a shared-world journey (saves your progress)
+pnpm dev                      # launch the browser version (Vite dev server)
+pnpm play sandbox             # REAL mode: pick a sandbox mission
+pnpm play sandbox git-009     # REAL mode: jump straight to one
+pnpm test                     # run the engine + mission + journey + sandbox tests
+pnpm typecheck                # tsc across all packages
 ```
+
+In any mission, type `explain <command>` (e.g. `explain rg`, `explain checkout`) to learn what
+a command *is* — whether it's a shell builtin, a tool you install, a git subcommand, or a
+PowerShell cmdlet — and `help` to see the available commands grouped by kind.
 
 Requires Node 22+ and pnpm 10+. The CLI runs `.ts` directly via `tsx` (no build step); the
 web app resolves the workspace packages straight to their TS source via Vite.
