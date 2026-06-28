@@ -3,6 +3,8 @@
  * These types are the contract shared by the engine, the CLI, and (later) the web app.
  */
 
+import type { Environment } from "../lessons/types.ts";
+
 export type FsNodeType = "file" | "dir";
 
 /**
@@ -69,6 +71,20 @@ export type Mission = {
   difficulty: Difficulty;
   track: MissionTrack;
   briefing: string;
+  /**
+   * Which shell/tool world this mission is played in. Drives which command set
+   * the engine offers (bash vs PowerShell vs a tool track) and how commands are
+   * explained. Defaults to "bash" when omitted, so the original missions are
+   * unaffected.
+   */
+  environment?: Environment;
+  /**
+   * Names of commands/verbs this mission is the first to introduce. The front-ends
+   * render a compact "new this mission" panel from these (each player can then run
+   * `explain <name>` for the full lesson card). Purely presentational — objectives
+   * still drive completion.
+   */
+  concepts?: string[];
   startingCwd: string;
   filesystem: Record<string, FsNode>;
   /**

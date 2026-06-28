@@ -1,4 +1,5 @@
 import type { VirtualFs } from "../fs/virtualFs.ts";
+import type { Lesson } from "../lessons/types.ts";
 import type { Mission } from "../missions/types.ts";
 import type { GameEvent, Mistake } from "../session/events.ts";
 import type { SessionState } from "../session/state.ts";
@@ -28,4 +29,6 @@ export type CommandSpec = {
   /** "command" completes nothing; "dir"/"file"/"path" drive arg autocomplete. */
   argType: "none" | "dir" | "file" | "path";
   handler: CommandHandler;
+  /** The "what IS this" teaching card, surfaced by `explain` and `help`. */
+  lesson?: Lesson;
 };

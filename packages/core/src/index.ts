@@ -1,5 +1,6 @@
 // Public surface of the shared engine. Both the CLI and the web app build on this.
 
+export * from "./lessons/types.ts";
 export * from "./missions/types.ts";
 export * from "./missions/validator.ts";
 export * from "./fs/pathUtils.ts";
