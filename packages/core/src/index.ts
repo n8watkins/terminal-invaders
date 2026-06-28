@@ -1,6 +1,19 @@
 // Public surface of the shared engine. Both the CLI and the web app build on this.
 
 export * from "./lessons/types.ts";
+export {
+  ALL_LESSONS,
+  conceptsForMission,
+  explainableNames,
+  formatLessonCard,
+  lessonFor,
+} from "./lessons/registry.ts";
+export { CORE_COMMAND_LESSONS } from "./commands/lessons.ts";
+export { EDITOR_LESSONS } from "./editor/lessons.ts";
+export { GIT_LESSONS } from "./git/lessons.ts";
+export { MODERN_TOOL_COMMANDS } from "./commands/modernTools.ts";
+export { POWERSHELL_COMMANDS } from "./commands/powershell.ts";
+export { FZF_COMMANDS } from "./commands/fzf.ts";
 export * from "./missions/types.ts";
 export * from "./missions/validator.ts";
 export * from "./fs/pathUtils.ts";

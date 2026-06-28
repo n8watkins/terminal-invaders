@@ -1,8 +1,13 @@
-import type { GameEngine, GameEvent, Mission } from "@terminal-invaders/core";
+import { conceptsForMission, type GameEngine, type GameEvent, type Mission } from "@terminal-invaders/core";
 import { c } from "./colors.ts";
 
 export function banner(mission: Mission): string {
   const bar = c.cyan("─".repeat(52));
+  const concepts = conceptsForMission(mission);
+  const conceptLine =
+    concepts.length > 0
+      ? `${c.dim("new here:")} ${concepts.map((n) => c.yellow(n)).join(c.dim(" · "))}   ${c.dim("← run `explain <name>` to learn each")}`
+      : "";
   return [
     bar,
     `${c.bold(c.magenta("TERMINAL INVADERS"))}  ${c.dim("·")}  ${c.bold(mission.title)}`,
@@ -10,8 +15,9 @@ export function banner(mission: Mission): string {
     bar,
     "",
     mission.briefing,
+    ...(conceptLine ? ["", conceptLine] : []),
     "",
-    c.dim('Type `help` for commands, `hint` if stuck, `check` when done.'),
+    c.dim('Type `help` for commands, `explain <cmd>` to learn one, `check` when done.'),
     "",
   ].join("\n");
 }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useReducer, useState } from "react";
-import { GameEngine, type Mission } from "@terminal-invaders/core";
+import { conceptsForMission, GameEngine, type Mission } from "@terminal-invaders/core";
 import { MISSIONS } from "@terminal-invaders/missions";
 import { FileTree } from "./components/FileTree.tsx";
 import { MissionPanel } from "./components/MissionPanel.tsx";
@@ -112,10 +112,16 @@ function Game({
 }) {
   const engine = useMemo(() => new GameEngine(mission), [mission]);
   const [, force] = useReducer((x) => x + 1, 0);
-  const [lines, setLines] = useState<OutputLine[]>(() => [
-    line("system", mission.briefing),
-    line("system", "Type `help` for commands, `hint` if stuck, `check` when done."),
-  ]);
+  const [lines, setLines] = useState<OutputLine[]>(() => {
+    const concepts = conceptsForMission(mission);
+    return [
+      line("system", mission.briefing),
+      ...(concepts.length > 0
+        ? [line("system", `New here: ${concepts.join(", ")} — run \`explain <name>\` to learn each.`)]
+        : []),
+      line("system", "Type `help` for commands, `explain <cmd>` to learn one, `check` when done."),
+    ];
+  });
   const run = (input: string) => {
     const trimmed = input.trim();
     const next: OutputLine[] = [];

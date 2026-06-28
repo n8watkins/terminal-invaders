@@ -1,4 +1,5 @@
 import { resolvePath, basename, parentPath } from "../fs/pathUtils.ts";
+import { CORE_COMMAND_LESSONS } from "./lessons.ts";
 import type { CommandResult, CommandSpec } from "./types.ts";
 
 /** Suggest the closest existing path to a mistyped one (cheap heuristic). */
@@ -201,6 +202,11 @@ function dedupe(list: string[], value: string): string[] {
 
 /** Commands whose only job is to satisfy mission objectives / validation. */
 export const CORE_COMMANDS: CommandSpec[] = [pwd, ls, cd, cat, open, rg, nvim, git, tree];
+
+// Attach the teaching cards so `help` can group by kind and `explain` can find
+// them straight off the spec. Kept here (not inlined above) so the handlers stay
+// readable and the lesson prose lives in one file.
+for (const spec of CORE_COMMANDS) spec.lesson = CORE_COMMAND_LESSONS[spec.name];
 
 export { resolvePath, parentPath };
 export type { CommandResult };

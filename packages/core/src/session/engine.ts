@@ -5,6 +5,8 @@ import type { CommandResult, CommandSpec } from "../commands/types.ts";
 import { EditorModel } from "../editor/editor.ts";
 import { GitModel } from "../git/git.ts";
 import { resolvePath } from "../fs/pathUtils.ts";
+import { explainableNames, formatLessonCard, lessonFor } from "../lessons/registry.ts";
+import type { CommandKind } from "../lessons/types.ts";
 import type { Mission } from "../missions/types.ts";
 import { isObjectiveComplete } from "../missions/validator.ts";
 import { objectivePoints, POINTS, timeBonus } from "../scoring/scoring.ts";
@@ -61,7 +63,7 @@ export class GameEngine {
   }
 
   knownCommandNames(): string[] {
-    return [...this.commands.keys(), "check", "help", "hint", "clear", "reset"].sort();
+    return [...this.commands.keys(), "check", "help", "explain", "hint", "clear", "reset"].sort();
   }
 
   getCommand(name: string): CommandSpec | undefined {
@@ -102,6 +104,8 @@ export class GameEngine {
         return this.runCheck();
       case "help":
         return { output: this.helpText(), events: [] };
+      case "explain":
+        return { output: this.explainText(parsed.args[0]), events: [] };
       case "hint":
         return this.runHint();
       case "clear":
@@ -398,15 +402,66 @@ export class GameEngine {
     }));
   }
 
+  /**
+   * Help, grouped by what KIND of thing each command is — the distinction players
+   * were missing ("is `rg` a shell builtin or a tool I install?"). Commands carry
+   * a lesson with a `kind`; we bucket by it and label each bucket.
+   */
   private helpText(): string[] {
-    const lines = ["Commands:"];
-    for (const spec of this.commands.values()) {
-      lines.push(`  ${spec.name.padEnd(8)} ${spec.summary}`);
+    const KIND_ORDER: { kind: CommandKind; header: string }[] = [
+      { kind: "shell-builtin", header: "Shell builtins (part of the shell itself)" },
+      { kind: "coreutil", header: "Core utilities (classic Unix programs)" },
+      { kind: "external-cli", header: "External tools (installed separately)" },
+      { kind: "powershell-cmdlet", header: "PowerShell cmdlets" },
+      { kind: "git-subcommand", header: "Git subcommands" },
+      { kind: "editor-command", header: "Editor commands" },
+    ];
+    const lines: string[] = [];
+    const seen = new Set<string>();
+    for (const { kind, header } of KIND_ORDER) {
+      const specs = [...this.commands.values()].filter((s) => s.lesson?.kind === kind);
+      if (specs.length === 0) continue;
+      lines.push(header + ":");
+      for (const spec of specs) {
+        lines.push(`  ${spec.name.padEnd(14)} ${spec.summary}`);
+        seen.add(spec.name);
+      }
     }
-    lines.push("  check    Validate the mission");
-    lines.push("  hint     Reveal a hint (costs points)");
-    lines.push("  clear    Clear the screen");
-    lines.push("  reset    Restart the mission");
+    // Any command without a lesson kind still gets listed so help is complete.
+    const rest = [...this.commands.values()].filter((s) => !seen.has(s.name));
+    if (rest.length > 0) {
+      lines.push("Other:");
+      for (const spec of rest) lines.push(`  ${spec.name.padEnd(14)} ${spec.summary}`);
+    }
+    lines.push("Game commands:");
+    lines.push(`  ${"check".padEnd(14)} Validate the mission`);
+    lines.push(`  ${"explain <cmd>".padEnd(14)} What a command IS, where it comes from, examples`);
+    lines.push(`  ${"hint".padEnd(14)} Reveal a hint (costs points)`);
+    lines.push(`  ${"clear".padEnd(14)} Clear the screen`);
+    lines.push(`  ${"reset".padEnd(14)} Restart the mission`);
+    lines.push("");
+    lines.push("Not sure what something is? Run `explain <command>` — e.g. `explain rg`.");
     return lines;
+  }
+
+  /** `explain <name>` — surface the full teaching card for any command/verb/subcommand. */
+  private explainText(name?: string): string[] {
+    if (!name) {
+      return [
+        "explain <name> — learn what a command is, where it comes from, and how to use it.",
+        "",
+        `You can explain: ${explainableNames().join(", ")}`,
+        "",
+        "e.g. `explain rg`, `explain checkout`, `explain :wq`",
+      ];
+    }
+    const lesson = lessonFor(name);
+    if (!lesson) {
+      return [
+        `No lesson for "${name}" yet.`,
+        "Run `help` to see available commands, or `explain` for the full list.",
+      ];
+    }
+    return formatLessonCard(name, lesson);
   }
 }
