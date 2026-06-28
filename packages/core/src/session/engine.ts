@@ -73,6 +73,9 @@ export class GameEngine {
       this.git = new GitModel(mission.git.head);
       this.syncGitMirrors();
     }
+    // Baseline = commits already present at step start (0 for a fresh mission, the
+    // carried count for a journey step), so git_committed requires a NEW commit.
+    this.state.gitCommitsBaseline = this.state.gitCommits;
   }
 
   /** Are we currently inside the simulated editor? (UIs use this to switch the prompt.) */
@@ -423,6 +426,7 @@ export class GameEngine {
       this.git = this.mission.git ? new GitModel(this.mission.git.head) : undefined;
     }
     this.syncGitMirrors();
+    this.state.gitCommitsBaseline = this.state.gitCommits;
   }
 
   /** A serializable snapshot of the world this engine is driving (for journey saves). */
@@ -491,7 +495,10 @@ export class GameEngine {
         "e.g. `explain rg`, `explain checkout`, `explain :wq`",
       ];
     }
-    const lesson = lessonFor(name);
+    // Prefer the ACTIVE command's own lesson so `explain` answers for this
+    // environment (a PowerShell mission's `ls` shows the cmdlet-alias card, not
+    // the bash one); fall back to the global registry for verbs/subcommands.
+    const lesson = this.commands.get(name)?.lesson ?? lessonFor(name);
     if (!lesson) {
       return [
         `No lesson for "${name}" yet.`,

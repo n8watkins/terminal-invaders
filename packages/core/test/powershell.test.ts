@@ -152,7 +152,7 @@ describe("POWERSHELL_COMMANDS — lesson coverage", () => {
     }
   });
 
-  it("registers both the cmdlet and its alias, but not ls/dir", () => {
+  it("registers each cmdlet, its short alias, and the bash-name aliases PowerShell ships", () => {
     const names = POWERSHELL_COMMANDS.map((c) => c.name);
     for (const pair of [
       ["Get-Location", "gl"],
@@ -165,7 +165,17 @@ describe("POWERSHELL_COMMANDS — lesson coverage", () => {
       expect(names).toContain(pair[0]);
       expect(names).toContain(pair[1]);
     }
-    expect(names).not.toContain("ls");
-    expect(names).not.toContain("dir");
+    // PowerShell genuinely aliases these bash names, so a bash user can type them.
+    for (const alias of ["ls", "dir", "cd", "pwd", "cat"]) {
+      expect(names, `PowerShell should register the ${alias} alias`).toContain(alias);
+    }
+  });
+
+  it("the bash-name aliases run the same handler as their canonical cmdlet", () => {
+    const by = (n: string) => POWERSHELL_COMMANDS.find((c) => c.name === n)!;
+    expect(by("ls").handler).toBe(by("Get-ChildItem").handler);
+    expect(by("cd").handler).toBe(by("Set-Location").handler);
+    expect(by("pwd").handler).toBe(by("Get-Location").handler);
+    expect(by("cat").handler).toBe(by("Get-Content").handler);
   });
 });

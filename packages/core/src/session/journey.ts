@@ -122,9 +122,15 @@ export class PathSession {
     return this.engine.state.complete;
   }
 
-  /** Banked score plus whatever the active step has accrued so far. */
+  /**
+   * Banked score plus whatever the active step has accrued so far. Once the
+   * current step has been banked (e.g. after `advance()` on the final step, which
+   * keeps the same engine in place), its live score is already in `bankedScore` —
+   * so we must not add it again, or the last step would be double-counted.
+   */
   get totalScore(): number {
-    return this.bankedScore + this.engine.state.score;
+    const alreadyBanked = this.completedSteps.includes(this.currentStep.id);
+    return this.bankedScore + (alreadyBanked ? 0 : this.engine.state.score);
   }
 
   /** Delegate a line of input to the active step's engine. */

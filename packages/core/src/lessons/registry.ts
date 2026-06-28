@@ -21,15 +21,18 @@ for (const spec of [...MODERN_TOOL_COMMANDS, ...POWERSHELL_COMMANDS, ...FZF_COMM
 }
 
 /**
- * Every lesson, keyed by command/verb/subcommand name. Later spreads win on a key
- * clash, but the source sets are deliberately disjoint (e.g. `git` the program
- * lives in CORE, its subcommands like `status` live in GIT_LESSONS).
+ * Every lesson, keyed by command/verb/subcommand name. A few names appear in more
+ * than one world (PowerShell aliases `ls`/`cd`/`pwd`/`cat` to its cmdlets), so the
+ * spread order makes the bash CORE lesson win for shared names — that's the right
+ * default for a context-free lookup like bare `explain`. For a per-environment
+ * answer, the engine prefers the *active* command's own lesson first (a PowerShell
+ * mission's `ls` shows the cmdlet alias card), falling back here.
  */
 export const ALL_LESSONS: Record<string, Lesson> = {
-  ...CORE_COMMAND_LESSONS,
-  ...GIT_LESSONS,
-  ...EDITOR_LESSONS,
   ...TOOL_LESSONS,
+  ...EDITOR_LESSONS,
+  ...GIT_LESSONS,
+  ...CORE_COMMAND_LESSONS,
 };
 
 /** Resolve the teaching card for a name, or undefined if we don't teach it. */

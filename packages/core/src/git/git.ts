@@ -152,7 +152,9 @@ export class GitModel {
     if (source === undefined) {
       return { ok: false, message: `error: pathspec '${path}' did not match any file(s) known to git` };
     }
-    fs.writeFile(path, source);
+    // setFile (not writeFile) so a file deleted from the working tree is recreated
+    // — otherwise `git restore` would report success but restore nothing.
+    fs.setFile(path, source);
     return { ok: true, message: `Restored ${path}` };
   }
 

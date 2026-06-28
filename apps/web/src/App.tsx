@@ -334,7 +334,13 @@ function JourneyGame({ journey, onExit }: { journey: Journey; onExit: () => void
     setLines((prev) => [...prev, ...next]);
 
     if (engine.state.complete) {
-      saveJourneySave(journey.id, session.snapshot());
+      // Don't persist a save here: a snapshot taken at a just-completed step
+      // can't be resumed cleanly (a fresh engine for that step re-derives latched
+      // objectives from a world that has already moved past them — e.g. a
+      // git_staged objective is unsatisfiable once the change is committed). Let
+      // `advance()` be the only writer, so saves always point at a not-yet-played
+      // step. The trade-off — completing a step then leaving without clicking
+      // Next replays that step — is strictly better than a resume soft-lock.
       setStepDone(true);
     }
     force();

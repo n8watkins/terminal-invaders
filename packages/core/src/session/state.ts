@@ -22,8 +22,10 @@ export type SessionState = {
   editorSearches: string[];
   /** Git subcommands run this run (e.g. "status", "diff", "commit"). */
   gitSubcommands: string[];
-  /** Number of commits made this run. */
+  /** Number of commits in the repo (cumulative; in a journey this carries across steps). */
   gitCommits: number;
+  /** Commit count at this step's start, so `git_committed` requires a NEW commit (not a carried one). */
+  gitCommitsBaseline: number;
   /** Paths with staged changes (index differs from HEAD). Mirrored from the git model. */
   gitStagedPaths: string[];
   /** Paths with unstaged/untracked changes. Mirrored from the git model. */
@@ -57,6 +59,7 @@ export function createInitialState(mission: Mission): SessionState {
     editorSearches: [],
     gitSubcommands: [],
     gitCommits: 0,
+    gitCommitsBaseline: 0,
     gitStagedPaths: [],
     gitModifiedPaths: [],
     completedObjectives: [],

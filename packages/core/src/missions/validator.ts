@@ -41,7 +41,10 @@ export function isObjectiveComplete(
         !state.gitModifiedPaths.includes(objective.path)
       );
     case "git_committed":
-      return state.gitCommits > 0;
+      // A NEW commit beyond what was already present at step start. In a single
+      // mission the baseline is 0; in a journey it carries the prior steps' count,
+      // so "make a commit" can't be satisfied by a commit from an earlier step.
+      return state.gitCommits > state.gitCommitsBaseline;
     case "search_performed": {
       const needle = objective.query.toLowerCase();
       return state.searches.some((s) => {

@@ -60,10 +60,13 @@ export const CORE_COMMAND_LESSONS: Record<string, Lesson> = {
   },
 
   open: {
-    kind: "coreutil",
+    // Not a coreutil: `open` is macOS-specific (LaunchServices), not a portable
+    // Unix program — here it's a simulated preview command. "external-cli" keeps
+    // it out of the "classic Unix programs" help group.
+    kind: "external-cli",
     environment: ["bash", "zsh"],
     provenance:
-      "In Terminal Invaders this is a simulated command: `open` shows a file in the trainer's preview pane. On real macOS, `open <file>` launches the file in its default application; the Linux analog is `xdg-open`.",
+      "In Terminal Invaders this is a simulated command: `open` shows a file in the trainer's preview pane. On real macOS, `open <file>` launches the file in its default application (it's macOS-specific, not a portable Unix tool); the Linux analog is `xdg-open`.",
     synopsis: "open <file>",
     explanation:
       "In this trainer, `open` previews a file in the side pane so you can read it without leaving the mission — think of it as \"take a look at this\". On a real Mac, `open` hands a file to whatever app is registered for it (a PDF to Preview, a folder to Finder); on Linux you'd use `xdg-open` for the same effect. Use it here when a mission tells you to inspect a file.",

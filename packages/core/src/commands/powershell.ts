@@ -16,12 +16,13 @@ import type { CommandHandler, CommandSpec } from "./types.ts";
 
 /** Shared provenance line: what a PowerShell cmdlet *is* and where it comes from. */
 const PWSH_PROVENANCE =
-  "A PowerShell cmdlet — built into PowerShell itself, Microsoft's cross-platform " +
-  "shell. There is nothing extra to install beyond PowerShell: it ships with Windows " +
-  "as `powershell`/`pwsh`, and on macOS/Linux you install PowerShell and run it as " +
-  "`pwsh` (`brew install --cask powershell`, `apt install powershell`, or " +
-  "`winget install Microsoft.PowerShell`). Cmdlets follow a `Verb-Noun` naming scheme " +
-  "(Get-, Set-, Select-, Write-), and most have short aliases for everyday typing.";
+  "A PowerShell cmdlet — built into PowerShell itself, Microsoft's shell. Windows " +
+  "preinstalls Windows PowerShell 5.1 as `powershell`. The cross-platform PowerShell 7+ " +
+  "(`pwsh`) is a separate install on every OS, including Windows: " +
+  "`brew install --cask powershell` (macOS), `snap install powershell` (Linux; it's not " +
+  "in the default apt repos), or `winget install Microsoft.PowerShell` (Windows). Cmdlets " +
+  "follow a `Verb-Noun` naming scheme (Get-, Set-, Select-, Write-), and most have short " +
+  "aliases for everyday typing.";
 
 function dedupe(list: string[], value: string): string[] {
   return list.includes(value) ? list : [...list, value];
@@ -314,5 +315,43 @@ export const POWERSHELL_COMMANDS: CommandSpec[] = [
     argType: "none",
     handler: writeOutput,
     lesson: aliasLesson("echo", "Write-Output", "echo"),
+  },
+  // Bash-name aliases PowerShell ships out of the box, so a learner coming from
+  // bash can type what they already know. (PowerShell really does alias these:
+  // ls/dir -> Get-ChildItem, cd -> Set-Location, pwd -> Get-Location, cat -> Get-Content.)
+  {
+    name: "ls",
+    summary: "Alias of Get-ChildItem (PowerShell ls)",
+    argType: "dir",
+    handler: getChildItem,
+    lesson: aliasLesson("ls", "Get-ChildItem", "ls"),
+  },
+  {
+    name: "dir",
+    summary: "Alias of Get-ChildItem (PowerShell dir)",
+    argType: "dir",
+    handler: getChildItem,
+    lesson: aliasLesson("dir", "Get-ChildItem", "ls"),
+  },
+  {
+    name: "cd",
+    summary: "Alias of Set-Location (PowerShell cd)",
+    argType: "dir",
+    handler: setLocation,
+    lesson: aliasLesson("cd", "Set-Location", "cd"),
+  },
+  {
+    name: "pwd",
+    summary: "Alias of Get-Location (PowerShell pwd)",
+    argType: "none",
+    handler: getLocation,
+    lesson: aliasLesson("pwd", "Get-Location", "pwd"),
+  },
+  {
+    name: "cat",
+    summary: "Alias of Get-Content (PowerShell cat)",
+    argType: "file",
+    handler: getContent,
+    lesson: aliasLesson("cat", "Get-Content", "cat"),
   },
 ];
