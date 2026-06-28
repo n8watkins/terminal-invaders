@@ -34,6 +34,9 @@ export type MissionTrack =
 
 export type Difficulty = 1 | 2 | 3 | 4 | 5;
 
+/** Optional command toolkits a mission/journey layers on top of its base shell. */
+export type ToolKit = "modern" | "fzf";
+
 export type Hint = {
   /** Penalty-free hints can be marked free; most cost points when revealed. */
   text: string;
@@ -78,6 +81,12 @@ export type Mission = {
    * unaffected.
    */
   environment?: Environment;
+  /**
+   * Command toolkits to make available on top of the base shell (e.g. the modern
+   * CLI tools, or fzf). The base set itself is chosen by `environment`
+   * (PowerShell vs bash); these add optional tracks.
+   */
+  tools?: ToolKit[];
   /**
    * Names of commands/verbs this mission is the first to introduce. The front-ends
    * render a compact "new this mission" panel from these (each player can then run

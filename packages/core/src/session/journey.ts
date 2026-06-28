@@ -15,7 +15,7 @@
 import { VirtualFs } from "../fs/virtualFs.ts";
 import { GitModel, type GitSnapshot } from "../git/git.ts";
 import type { Environment } from "../lessons/types.ts";
-import type { FsNode, Hint, Mission, Objective } from "../missions/types.ts";
+import type { FsNode, Hint, Mission, Objective, ToolKit } from "../missions/types.ts";
 import { GameEngine, type ExecuteResult } from "./engine.ts";
 
 /**
@@ -50,6 +50,8 @@ export type Journey = {
   id: string;
   title: string;
   environment: Environment;
+  /** Command toolkits available throughout the journey (e.g. ["modern"], ["fzf"]). */
+  tools?: ToolKit[];
   blurb: string;
   outcomes: string[];
   /** The initial shared world. */
@@ -196,6 +198,7 @@ export class PathSession {
       difficulty: 1,
       track: "workflow",
       environment: this.journey.environment,
+      tools: this.journey.tools,
       briefing: step.briefing,
       concepts: step.concepts,
       startingCwd: cwd,

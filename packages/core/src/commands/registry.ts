@@ -1,5 +1,10 @@
 import { resolvePath, basename, parentPath } from "../fs/pathUtils.ts";
+import type { Environment } from "../lessons/types.ts";
+import type { ToolKit } from "../missions/types.ts";
+import { FZF_COMMANDS } from "./fzf.ts";
 import { CORE_COMMAND_LESSONS } from "./lessons.ts";
+import { MODERN_TOOL_COMMANDS } from "./modernTools.ts";
+import { POWERSHELL_COMMANDS } from "./powershell.ts";
 import type { CommandResult, CommandSpec } from "./types.ts";
 
 /** Suggest the closest existing path to a mistyped one (cheap heuristic). */
@@ -207,6 +212,24 @@ export const CORE_COMMANDS: CommandSpec[] = [pwd, ls, cd, cat, open, rg, nvim, g
 // them straight off the spec. Kept here (not inlined above) so the handlers stay
 // readable and the lesson prose lives in one file.
 for (const spec of CORE_COMMANDS) spec.lesson = CORE_COMMAND_LESSONS[spec.name];
+
+/**
+ * The base command set for a mission/journey, chosen by its environment:
+ * PowerShell missions get the cmdlet set; everything else gets the bash core,
+ * plus any opted-in toolkits (modern CLI tools, fzf). `tool:fzf` implies fzf.
+ */
+export function commandsForMission(mission: {
+  environment?: Environment;
+  tools?: ToolKit[];
+}): CommandSpec[] {
+  if (mission.environment === "powershell") return [...POWERSHELL_COMMANDS];
+  const base = [...CORE_COMMANDS];
+  const tools = new Set<ToolKit>(mission.tools ?? []);
+  if (mission.environment === "tool:fzf") tools.add("fzf");
+  if (tools.has("modern")) base.push(...MODERN_TOOL_COMMANDS);
+  if (tools.has("fzf")) base.push(...FZF_COMMANDS);
+  return base;
+}
 
 export { resolvePath, parentPath };
 export type { CommandResult };

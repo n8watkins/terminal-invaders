@@ -22,7 +22,7 @@ export type { SearchMatch, DirEntry } from "./fs/virtualFs.ts";
 export { parseCommand } from "./commands/parser.ts";
 export type { ParsedCommand } from "./commands/parser.ts";
 export type { CommandResult, CommandSpec, CommandContext, CommandHandler } from "./commands/types.ts";
-export { CORE_COMMANDS } from "./commands/registry.ts";
+export { CORE_COMMANDS, commandsForMission } from "./commands/registry.ts";
 export { completeInput, completionCandidates } from "./commands/autocomplete.ts";
 export type { CompletionResult, CompletionCandidates } from "./commands/autocomplete.ts";
 export { GameEngine } from "./session/engine.ts";

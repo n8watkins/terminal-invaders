@@ -1,6 +1,6 @@
 import { VirtualFs } from "../fs/virtualFs.ts";
 import { parseCommand } from "../commands/parser.ts";
-import { CORE_COMMANDS } from "../commands/registry.ts";
+import { commandsForMission } from "../commands/registry.ts";
 import type { CommandResult, CommandSpec } from "../commands/types.ts";
 import { EditorModel } from "../editor/editor.ts";
 import { GitModel, type GitSnapshot } from "../git/git.ts";
@@ -60,7 +60,9 @@ export class GameEngine {
     this.fs = opts.seedFs ?? new VirtualFs(mission.filesystem);
     this.state = createInitialState(mission);
     this.commands = new Map();
-    const base = opts.commands ?? CORE_COMMANDS;
+    // Base command set follows the mission's environment (bash core, PowerShell
+    // cmdlets, tool tracks) unless the caller pins an explicit set.
+    const base = opts.commands ?? commandsForMission(mission);
     for (const spec of [...base, ...(opts.extraCommands ?? [])]) {
       if (this.isAllowed(spec.name)) this.commands.set(spec.name, spec);
     }
