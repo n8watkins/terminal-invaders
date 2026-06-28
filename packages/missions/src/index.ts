@@ -1,5 +1,6 @@
-import type { Mission } from "@terminal-invaders/core";
+import type { Journey, Mission } from "@terminal-invaders/core";
 import { LEARNING_PATHS, getPath, pathForMission, type LearningPath } from "./paths.ts";
+import { gitSafetyJourney } from "./journeys/gitSafety.ts";
 
 // --- navigation ---
 import { inspectRoot } from "./navigation/inspectRoot.ts";
@@ -140,6 +141,13 @@ export function missionsForPath(pathId: string): Mission[] {
   return path.missionIds
     .map((id) => getMission(id))
     .filter((m): m is Mission => m !== undefined);
+}
+
+// ── Journeys (shared-world storylines; one evolving project across steps) ──
+export const JOURNEYS: Journey[] = [gitSafetyJourney];
+
+export function getJourney(id: string): Journey | undefined {
+  return JOURNEYS.find((j) => j.id === id);
 }
 
 /** The next mission within the same path, or undefined at the path's end. */

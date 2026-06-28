@@ -13,6 +13,13 @@ export type GitStatus = {
   untracked: string[];
 };
 
+/** Serializable snapshot of the three trees — for carrying git state across a journey. */
+export type GitSnapshot = {
+  head: Record<string, string>;
+  index: Record<string, string>;
+  commits: GitCommit[];
+};
+
 export class GitModel {
   private head: Map<string, string>;
   private index: Map<string, string>;
@@ -21,6 +28,45 @@ export class GitModel {
   constructor(headSnapshot: Record<string, string>) {
     this.head = new Map(Object.entries(headSnapshot));
     this.index = new Map(this.head);
+  }
+
+  /** Capture all three trees so the world can be saved and resumed later. */
+  snapshot(): GitSnapshot {
+    return {
+      head: Object.fromEntries(this.head),
+      index: Object.fromEntries(this.index),
+      commits: this.commits.map((c) => ({ ...c })),
+    };
+  }
+
+  /** Overwrite this model's three trees from a snapshot (in place). */
+  loadSnapshot(snap: GitSnapshot): void {
+    this.head = new Map(Object.entries(snap.head));
+    this.index = new Map(Object.entries(snap.index));
+    this.commits.length = 0;
+    this.commits.push(...snap.commits.map((c) => ({ ...c })));
+  }
+
+  static fromSnapshot(snap: GitSnapshot): GitModel {
+    const g = new GitModel(snap.head);
+    g.loadSnapshot(snap);
+    return g;
+  }
+
+  /**
+   * Inject a commit straight into history — simulating a change that "already
+   * landed" (a teammate's commit, an upstream pull). Sets head + index for the
+   * given files and records a commit, leaving the working tree to the caller.
+   */
+  injectCommit(message: string, files: Record<string, string>): GitCommit {
+    for (const [path, content] of Object.entries(files)) {
+      this.head.set(path, content);
+      this.index.set(path, content);
+    }
+    const sha = shortSha();
+    const commit: GitCommit = { sha, message, at: Date.now() };
+    this.commits.push(commit);
+    return commit;
   }
 
   private tracked(): Set<string> {

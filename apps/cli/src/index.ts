@@ -1,10 +1,18 @@
 #!/usr/bin/env -S npx tsx
 import * as readline from "node:readline";
 import { stdin, stdout } from "node:process";
-import { GameEngine, completionCandidates, type Mission } from "@terminal-invaders/core";
 import {
+  GameEngine,
+  PathSession,
+  completionCandidates,
+  type Journey,
+  type Mission,
+} from "@terminal-invaders/core";
+import {
+  JOURNEYS,
   LEARNING_PATHS,
   MISSIONS,
+  getJourney,
   getMission,
   getPath,
   missionsForPath,
@@ -14,21 +22,79 @@ import {
 } from "@terminal-invaders/missions";
 import { c } from "./colors.ts";
 import { banner, checklist, prompt, renderEvents, replayBreakdown } from "./render.ts";
+import { clearJourneySave, loadJourneySave, saveJourney } from "./saves.ts";
 import { runSandbox, sandboxEligible } from "./sandbox.ts";
 
 function print(s: string | string[]): void {
   stdout.write((Array.isArray(s) ? s.join("\n") : s) + "\n");
 }
 
-async function ask(question: string): Promise<string> {
-  const rl = readline.createInterface({ input: stdin, output: stdout });
-  const answer = await new Promise<string>((res) => rl.question(question, res));
-  rl.close();
-  return answer.trim();
+// ── Input: ONE readline for the whole session, pull-based ───────────────────
+// Creating/closing a readline per prompt drops buffered lines on piped stdin.
+// Instead we keep a single interface and a line QUEUE: every line read is either
+// handed to a waiting consumer or queued, so nothing is ever dropped between
+// prompts. Consumers pull with `nextLine()`. The Tab completer reads a mutable
+// `completerEngine` so completion follows the active mission/step.
+const CLOSED = Symbol("stdin-closed");
+let rl: readline.Interface | undefined;
+let stdinClosed = false;
+let completerEngine: GameEngine | undefined;
+const lineQueue: string[] = [];
+let waiting: ((line: string | typeof CLOSED) => void) | undefined;
+
+function initInput(): void {
+  if (rl) return;
+  rl = readline.createInterface({
+    input: stdin,
+    output: stdout,
+    historySize: 200,
+    completer: (line: string): [string[], string] => {
+      if (!completerEngine || completerEngine.editorOpen) return [[], line];
+      const { current, candidates, dirs } = completionCandidates(line, completerEngine);
+      if (candidates.length > 0) completerEngine.noteAutocompleteUsed();
+      return [candidates.map((cand) => (dirs.has(cand) ? `${cand}/` : cand)), current];
+    },
+  });
+  rl.on("line", (l) => {
+    if (waiting) {
+      const w = waiting;
+      waiting = undefined;
+      w(l);
+    } else {
+      lineQueue.push(l);
+    }
+  });
+  rl.on("close", () => {
+    stdinClosed = true;
+    if (waiting) {
+      const w = waiting;
+      waiting = undefined;
+      w(CLOSED);
+    }
+  });
 }
 
-/** Pick a learning path. Returns undefined to quit. */
-async function choosePath(completed: Set<string>): Promise<LearningPath | undefined> {
+/** Pull the next line of input (queued or awaited). Never drops a line. */
+function nextLine(): Promise<string | typeof CLOSED> {
+  initInput();
+  if (lineQueue.length > 0) return Promise.resolve(lineQueue.shift()!);
+  if (stdinClosed) return Promise.resolve(CLOSED);
+  return new Promise((resolve) => {
+    waiting = resolve;
+  });
+}
+
+/** Prompt once and resolve with the trimmed answer (empty string if stdin closed). */
+async function ask(question: string): Promise<string> {
+  initInput();
+  rl!.setPrompt(question);
+  rl!.prompt();
+  const line = await nextLine();
+  return line === CLOSED ? "" : line.trim();
+}
+
+/** Pick a learning path or a journey. Returns undefined to quit. */
+async function choosePath(completed: Set<string>): Promise<LearningPath | Journey | undefined> {
   print(c.bold(c.magenta("\nTERMINAL INVADERS")) + c.dim("  — choose what to learn\n"));
   LEARNING_PATHS.forEach((p, i) => {
     const done = p.missionIds.filter((id) => completed.has(id)).length;
@@ -38,9 +104,23 @@ async function choosePath(completed: Set<string>): Promise<LearningPath | undefi
     print(`       ${c.dim(p.blurb)}`);
   });
   print("");
-  const answer = await ask(c.green("path> ") + c.dim("(number, or q to quit) "));
+  print(c.dim("  Journeys — one evolving project across several steps (saves your progress):"));
+  JOURNEYS.forEach((j, i) => {
+    const n = LEARNING_PATHS.length + i + 1;
+    const mark = completed.has(j.id) ? c.green("✓ ") : "";
+    print(`  ${c.cyan(String(n))}. ${mark}${c.bold(j.title)}  ${c.dim(`[${j.environment}] · ${j.steps.length} steps`)}`);
+    print(`       ${c.dim(j.blurb)}`);
+  });
+  print("");
+  const answer = await ask(c.green("select> ") + c.dim("(number, or q to quit) "));
   if (answer.toLowerCase() === "q" || answer === "") return undefined;
-  return LEARNING_PATHS[Number(answer) - 1] ?? getPath(answer);
+  const n = Number(answer);
+  if (Number.isInteger(n)) {
+    if (n >= 1 && n <= LEARNING_PATHS.length) return LEARNING_PATHS[n - 1];
+    const j = JOURNEYS[n - LEARNING_PATHS.length - 1];
+    if (j) return j;
+  }
+  return getPath(answer) ?? getJourney(answer);
 }
 
 /** Pick a mission within a path. Returns undefined to go back. */
@@ -83,74 +163,118 @@ async function playPath(start: Mission, completed: Set<string>): Promise<void> {
   }
 }
 
-function buildCompleter(engine: GameEngine) {
-  return (line: string): [string[], string] => {
-    if (engine.editorOpen) return [[], line]; // editor manages its own input
-    // Same completion brain as the web app — just adapted to readline's
-    // [candidates, prefix] shape, with a "/" appended to directories.
-    const { current, candidates, dirs } = completionCandidates(line, engine);
-    if (candidates.length > 0) engine.noteAutocompleteUsed();
-    return [candidates.map((cand) => (dirs.has(cand) ? `${cand}/` : cand)), current];
-  };
-}
-
-async function playMission(mission: Mission): Promise<void> {
-  const engine = new GameEngine(mission);
+/**
+ * Run one engine to completion (or until the player closes the stream). Used for
+ * both standalone missions and individual journey steps. Returns whether the
+ * mission/step actually completed (vs the player bailing out). Drives the single
+ * shared readline via `lineHandler`.
+ */
+async function playEngine(engine: GameEngine, header?: string): Promise<boolean> {
+  initInput();
+  completerEngine = engine;
+  const mission = engine.mission;
   console.clear();
+  if (header) print(c.dim(header));
   print(banner(mission));
   print(checklist(engine));
   print("");
 
-  const rl = readline.createInterface({
-    input: stdin,
-    output: stdout,
-    completer: buildCompleter(engine),
-    historySize: 200,
-  });
-
-  const ask = () =>
-    rl.setPrompt(
+  const reprompt = () => {
+    rl!.setPrompt(
       engine.editorOpen ? c.magenta(`nvim:${engine.editorStatusLine() ?? ""} `) : prompt(engine.state.cwd),
     );
+    rl!.prompt();
+  };
 
-  await new Promise<void>((resolve) => {
-    ask();
-    rl.prompt();
+  reprompt();
+  while (true) {
+    const input = await nextLine();
+    if (input === CLOSED) break;
 
-    rl.on("line", (line) => {
-      const { output, events } = engine.execute(line);
+    const { output, events } = engine.execute(input);
 
-      if (output.length === 1 && output[0] === "\x1b[CLEAR\x1b[") {
-        console.clear();
-        print(banner(mission));
-      } else if (output.length) {
-        print(output);
-      }
+    if (output.length === 1 && output[0] === "\x1b[CLEAR\x1b[") {
+      console.clear();
+      if (header) print(c.dim(header));
+      print(banner(mission));
+    } else if (output.length) {
+      print(output);
+    }
 
-      const feedback = renderEvents(events);
-      if (feedback.length) print(feedback);
+    const feedback = renderEvents(events);
+    if (feedback.length) print(feedback);
 
-      if (engine.state.complete) {
-        print(replayBreakdown(engine));
-        print("");
-        rl.close();
-        resolve();
-        return;
-      }
-
-      // Show the live checklist after objective-changing turns.
-      if (events.some((e) => e.type === "objective_complete")) {
-        print("");
-        print(checklist(engine));
-      }
-
+    if (engine.state.complete) {
+      print(replayBreakdown(engine));
       print("");
-      ask();
-      rl.prompt();
-    });
+      break;
+    }
 
-    rl.on("close", () => resolve());
-  });
+    // Show the live checklist after objective-changing turns.
+    if (events.some((e) => e.type === "objective_complete")) {
+      print("");
+      print(checklist(engine));
+    }
+
+    print("");
+    reprompt();
+  }
+  completerEngine = undefined;
+  return engine.state.complete;
+}
+
+async function playMission(mission: Mission): Promise<void> {
+  await playEngine(new GameEngine(mission));
+}
+
+/**
+ * Play a journey: one shared world across ordered steps, with disk save/resume.
+ * The world carries forward between steps; the save always points at the step
+ * you'd resume into, so quitting and coming back lands you exactly there.
+ */
+async function playJourney(journey: Journey, completed: Set<string>): Promise<void> {
+  let session: PathSession;
+  const saved = loadJourneySave(journey.id);
+  if (saved) {
+    const ans = await ask(
+      c.cyan(`Resume "${journey.title}" from step ${saved.stepIndex + 1}/${journey.steps.length}? `) +
+        c.dim("[Enter = resume, n = restart] "),
+    );
+    if (ans.toLowerCase() === "n") {
+      clearJourneySave(journey.id);
+      session = new PathSession(journey);
+    } else {
+      session = new PathSession(journey, saved);
+    }
+  } else {
+    session = new PathSession(journey);
+  }
+
+  while (true) {
+    const header = `${journey.title}  ·  step ${session.stepIndex + 1}/${journey.steps.length}  ·  score ${session.totalScore}`;
+    const done = await playEngine(session.current, header);
+    if (!done) {
+      saveJourney(journey.id, session.snapshot());
+      print(c.dim("\nProgress saved — resume this journey anytime.\n"));
+      return;
+    }
+    if (session.isLastStep) {
+      session.advance(); // bank the final step's score
+      print(c.green(c.bold(`\n★ Journey complete: ${journey.title} — score ${session.totalScore}. gg.\n`)));
+      clearJourneySave(journey.id);
+      completed.add(journey.id);
+      return;
+    }
+    session.advance(); // bank the finished step, apply the next step's setup
+    saveJourney(journey.id, session.snapshot());
+    const ans = await ask(
+      c.cyan(`\nNext: ${session.currentStep.title}? `) + c.dim("[Enter = continue, q = save & quit] "),
+    );
+    if (ans.toLowerCase() === "q") {
+      print(c.dim("Saved — resume this journey anytime.\n"));
+      return;
+    }
+  }
 }
 
 async function chooseSandboxMission(arg?: string): Promise<Mission | undefined> {
@@ -182,27 +306,35 @@ async function main(): Promise<void> {
   const completed = new Set<string>();
   const arg = process.argv[2];
 
-  // Direct jump: `play <missionId|index>` or `play <pathId>` skips the path menu.
+  // Direct jump: `play <missionId|index>`, `play <pathId>`, or `play <journeyId>`.
   if (arg) {
     const direct = getMission(arg) ?? MISSIONS[Number(arg) - 1];
+    const journey = getJourney(arg);
     if (direct) {
       await playPath(direct, completed);
+    } else if (journey) {
+      await playJourney(journey, completed);
     } else if (getPath(arg)) {
       const m = await chooseMissionInPath(getPath(arg)!, completed);
       if (m) await playPath(m, completed);
     } else {
-      print(c.red(`No mission or path "${arg}".`));
+      print(c.red(`No mission, path, or journey "${arg}".`));
     }
   }
 
-  // Path menu loop: choose a path → choose a mission → walk the path → repeat.
+  // Menu loop: choose a path or journey, play it, return to the menu.
   while (true) {
-    const path = await choosePath(completed);
-    if (!path) break;
-    const mission = await chooseMissionInPath(path, completed);
-    if (mission) await playPath(mission, completed);
+    const choice = await choosePath(completed);
+    if (!choice) break;
+    if ("steps" in choice) {
+      await playJourney(choice, completed);
+    } else {
+      const mission = await chooseMissionInPath(choice, completed);
+      if (mission) await playPath(mission, completed);
+    }
   }
   print(c.dim("See you in the terminal. ◈"));
+  rl?.close();
 }
 
 main().catch((err) => {

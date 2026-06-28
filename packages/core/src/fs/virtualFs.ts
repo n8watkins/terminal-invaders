@@ -83,4 +83,26 @@ export class VirtualFs {
   allPaths(): string[] {
     return Object.keys(this.nodes).sort();
   }
+
+  /** Deep clone of the current node map — a serializable snapshot of the world. */
+  toNodes(): Record<string, FsNode> {
+    return structuredClone(this.nodes);
+  }
+
+  /**
+   * Create or overwrite a file node (unlike `writeFile`, which only updates an
+   * existing file). Used by journey world-mutations to drop new files into the
+   * shared world, e.g. "a teammate's change appeared".
+   */
+  setFile(path: string, content: string): void {
+    const norm = normalizePath(path);
+    const node = this.nodes[norm];
+    if (node && node.type === "file") node.content = content;
+    else this.nodes[norm] = { type: "file", content };
+  }
+
+  /** Remove a node (file or dir) from the world. */
+  deleteNode(path: string): void {
+    delete this.nodes[normalizePath(path)];
+  }
 }

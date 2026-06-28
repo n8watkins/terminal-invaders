@@ -3,7 +3,8 @@ import { parseCommand } from "../commands/parser.ts";
 import { CORE_COMMANDS } from "../commands/registry.ts";
 import type { CommandResult, CommandSpec } from "../commands/types.ts";
 import { EditorModel } from "../editor/editor.ts";
-import { GitModel } from "../git/git.ts";
+import { GitModel, type GitSnapshot } from "../git/git.ts";
+import type { FsNode } from "../missions/types.ts";
 import { resolvePath } from "../fs/pathUtils.ts";
 import { explainableNames, formatLessonCard, lessonFor } from "../lessons/registry.ts";
 import type { CommandKind } from "../lessons/types.ts";
@@ -16,6 +17,23 @@ import { createInitialState, type SessionState } from "./state.ts";
 export type ExecuteResult = {
   output: string[];
   events: GameEvent[];
+};
+
+/**
+ * Construction options. Plain `new GameEngine(mission)` is unchanged (a fresh,
+ * self-contained world). The seed/command options power two newer capabilities:
+ * a shared persistent world across a journey (seedFs/seedGit) and environment-
+ * specific command sets like PowerShell (commands).
+ */
+export type GameEngineOptions = {
+  /** Extra commands layered on top of the base set (e.g. a tool track). */
+  extraCommands?: CommandSpec[];
+  /** Replace the base command set entirely (e.g. PowerShell instead of bash). */
+  commands?: CommandSpec[];
+  /** Drive this exact filesystem instead of cloning mission.filesystem — the world is shared. */
+  seedFs?: VirtualFs;
+  /** Drive this exact git model instead of building from mission.git.head. */
+  seedGit?: GitModel;
 };
 
 const PAR_SECONDS = 90;
@@ -33,16 +51,23 @@ export class GameEngine {
   private commands: Map<string, CommandSpec>;
   private editor?: EditorModel;
   private git?: GitModel;
+  /** True when the world (fs/git) is owned externally (a journey), so reset keeps it. */
+  private readonly seeded: boolean;
 
-  constructor(mission: Mission, extraCommands: CommandSpec[] = []) {
+  constructor(mission: Mission, opts: GameEngineOptions = {}) {
     this.mission = mission;
-    this.fs = new VirtualFs(mission.filesystem);
+    this.seeded = opts.seedFs !== undefined || opts.seedGit !== undefined;
+    this.fs = opts.seedFs ?? new VirtualFs(mission.filesystem);
     this.state = createInitialState(mission);
     this.commands = new Map();
-    for (const spec of [...CORE_COMMANDS, ...extraCommands]) {
+    const base = opts.commands ?? CORE_COMMANDS;
+    for (const spec of [...base, ...(opts.extraCommands ?? [])]) {
       if (this.isAllowed(spec.name)) this.commands.set(spec.name, spec);
     }
-    if (mission.git) {
+    if (opts.seedGit) {
+      this.git = opts.seedGit;
+      this.syncGitMirrors();
+    } else if (mission.git) {
       this.git = new GitModel(mission.git.head);
       this.syncGitMirrors();
     }
@@ -388,10 +413,19 @@ export class GameEngine {
   reset(): void {
     this.state = createInitialState(this.mission);
     this.editor = undefined;
-    // Rebuild the filesystem so edits are undone.
-    this.fs = new VirtualFs(this.mission.filesystem);
-    this.git = this.mission.git ? new GitModel(this.mission.git.head) : undefined;
+    // Rebuild the filesystem so edits are undone — UNLESS the world is shared
+    // (a journey owns it), in which case reset only clears this step's session
+    // state and leaves the carried-over world intact.
+    if (!this.seeded) {
+      this.fs = new VirtualFs(this.mission.filesystem);
+      this.git = this.mission.git ? new GitModel(this.mission.git.head) : undefined;
+    }
     this.syncGitMirrors();
+  }
+
+  /** A serializable snapshot of the world this engine is driving (for journey saves). */
+  worldSnapshot(): { fsNodes: Record<string, FsNode>; git?: GitSnapshot; cwd: string } {
+    return { fsNodes: this.fs.toNodes(), git: this.git?.snapshot(), cwd: this.state.cwd };
   }
 
   objectiveChecklist(): { id: string; label: string; complete: boolean }[] {

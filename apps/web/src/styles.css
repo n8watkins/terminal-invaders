@@ -178,6 +178,34 @@ body {
 .outcomes li {
   margin: 2px 0;
 }
+.section-head {
+  margin: 40px 0 4px;
+  font-size: 14px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--magenta);
+}
+.path-card.journey {
+  border-style: dashed;
+}
+.path-card.journey:hover {
+  border-style: solid;
+}
+.continue {
+  background: var(--green);
+  color: #04130b;
+  border: none;
+  border-radius: 8px;
+  font: inherit;
+  font-weight: 700;
+  padding: 8px 16px;
+  cursor: pointer;
+  animation: pulse 1.2s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
 
 /* ── Game layout ────────────────────────────────────────────── */
 .game {

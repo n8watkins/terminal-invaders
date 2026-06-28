@@ -1,11 +1,29 @@
 import { useEffect, useMemo, useReducer, useState } from "react";
-import { conceptsForMission, GameEngine, type Mission } from "@terminal-invaders/core";
-import { LEARNING_PATHS, missionsForPath, type LearningPath } from "@terminal-invaders/missions";
+import {
+  conceptsForMission,
+  GameEngine,
+  PathSession,
+  type Journey,
+  type JourneyStep,
+  type Mission,
+} from "@terminal-invaders/core";
+import {
+  JOURNEYS,
+  LEARNING_PATHS,
+  missionsForPath,
+  type LearningPath,
+} from "@terminal-invaders/missions";
 import { FileTree } from "./components/FileTree.tsx";
 import { MissionPanel } from "./components/MissionPanel.tsx";
 import { Terminal } from "./components/Terminal.tsx";
 import { MiniMap } from "./components/MiniMap.tsx";
 import { eventLines, line, type OutputLine } from "./lib/output.ts";
+import {
+  clearJourneySave,
+  hasJourneySave,
+  loadJourneySave,
+  saveJourneySave,
+} from "./lib/journeySaves.ts";
 import {
   loadProgress,
   recordCompletion,
@@ -18,6 +36,7 @@ const CLEAR_MARKER = "\x1b[CLEAR\x1b[";
 
 export function App() {
   const [path, setPath] = useState<LearningPath | null>(null);
+  const [journey, setJourney] = useState<Journey | null>(null);
   const [mission, setMission] = useState<Mission | null>(null);
   // Read persisted progress once; updates flow back via onComplete so the picker
   // shows fresh ✓ badges after exiting a run, without a reload.
@@ -48,6 +67,9 @@ export function App() {
       />
     );
   }
+  if (journey) {
+    return <JourneyGame journey={journey} onExit={() => setJourney(null)} key={journey.id} />;
+  }
   if (path) {
     return (
       <MissionPicker
@@ -58,15 +80,17 @@ export function App() {
       />
     );
   }
-  return <PathPicker progress={progress} onPick={setPath} />;
+  return <PathPicker progress={progress} onPick={setPath} onPickJourney={setJourney} />;
 }
 
 function PathPicker({
   progress,
   onPick,
+  onPickJourney,
 }: {
   progress: ProgressMap;
   onPick: (p: LearningPath) => void;
+  onPickJourney: (j: Journey) => void;
 }) {
   return (
     <div className="picker">
@@ -93,6 +117,26 @@ function PathPicker({
               <span className="path-progress">
                 {complete ? "✓ " : ""}
                 {done}/{missions.length} complete
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      <h2 className="section-head">Journeys</h2>
+      <p className="tagline">One evolving project across several steps — your changes carry forward, and progress is saved.</p>
+      <div className="path-list">
+        {JOURNEYS.map((j) => {
+          const resumable = hasJourneySave(j.id);
+          return (
+            <button key={j.id} className="path-card journey" onClick={() => onPickJourney(j)}>
+              <span className="path-card-head">
+                <span className="path-title">{j.title}</span>
+                <span className={`env-badge ${j.environment.replace(":", "-")}`}>{j.environment}</span>
+              </span>
+              <span className="path-blurb">{j.blurb}</span>
+              <span className="path-progress">
+                {j.steps.length} steps{resumable ? " · resume in progress" : ""}
               </span>
             </button>
           );
@@ -235,6 +279,121 @@ function Game({
         <FileTree fs={engine.fs} cwd={engine.state.cwd} activeFile={engine.state.activeFile} />
         <Terminal engine={engine} lines={lines} onRun={run} />
         <MissionPanel mission={mission} engine={engine} />
+      </main>
+
+      <footer className="arcade">
+        <MiniMap engine={engine} />
+      </footer>
+    </div>
+  );
+}
+
+function stepIntroLines(step: JourneyStep): OutputLine[] {
+  const concepts = step.concepts ?? [];
+  return [
+    line("system", step.briefing),
+    ...(concepts.length > 0
+      ? [line("system", `New here: ${concepts.join(", ")} — run \`explain <name>\` to learn each.`)]
+      : []),
+    line("system", "Type `help`, `explain <cmd>`, `check` when done."),
+  ];
+}
+
+/**
+ * A journey: one shared world across ordered steps, with localStorage save/resume.
+ * Reuses the same Game shell components, driving `PathSession.current` (a real
+ * GameEngine). When a step's objectives are met, a "next step" affordance advances
+ * the session — carrying the world forward — and resets the terminal log.
+ */
+function JourneyGame({ journey, onExit }: { journey: Journey; onExit: () => void }) {
+  const [session] = useState(() => {
+    const saved = loadJourneySave(journey.id);
+    return saved ? new PathSession(journey, saved) : new PathSession(journey);
+  });
+  const [, force] = useReducer((x) => x + 1, 0);
+  const [stepIndex, setStepIndex] = useState(session.stepIndex);
+  const [stepDone, setStepDone] = useState(session.stepComplete);
+  const [journeyDone, setJourneyDone] = useState(false);
+  const [lines, setLines] = useState<OutputLine[]>(() => stepIntroLines(session.currentStep));
+
+  const engine = session.current;
+
+  const run = (input: string) => {
+    const trimmed = input.trim();
+    const next: OutputLine[] = [];
+    if (engine.editorOpen || trimmed) next.push(line("input", engine.editorOpen ? input : trimmed));
+
+    const { output, events } = engine.execute(input);
+    if (output.length === 1 && output[0] === CLEAR_MARKER) {
+      setLines([]);
+      force();
+      return;
+    }
+    for (const o of output) next.push(line("output", o));
+    next.push(...eventLines(events));
+    setLines((prev) => [...prev, ...next]);
+
+    if (engine.state.complete) {
+      saveJourneySave(journey.id, session.snapshot());
+      setStepDone(true);
+    }
+    force();
+  };
+
+  const advance = () => {
+    if (session.isLastStep) {
+      session.advance(); // bank the final step
+      clearJourneySave(journey.id);
+      setJourneyDone(true);
+      force();
+      return;
+    }
+    session.advance(); // bank finished step, carry the world, apply next setup
+    saveJourneySave(journey.id, session.snapshot());
+    setStepIndex(session.stepIndex);
+    setStepDone(false);
+    setLines(stepIntroLines(session.currentStep));
+    force();
+  };
+
+  if (journeyDone) {
+    return (
+      <div className="picker">
+        <h1 className="logo">★ {journey.title}</h1>
+        <p className="tagline">
+          Journey complete — final score {session.totalScore}. You ran the whole flow on one evolving world.
+        </p>
+        <button className="back" onClick={onExit}>
+          ‹ back to paths
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="game">
+      <header className="hud">
+        <button className="back" onClick={onExit}>
+          ‹ paths
+        </button>
+        <div className="hud-title">
+          <span className="hud-logo">{journey.title}</span>
+          <span className="hud-mission">
+            step {session.stepIndex + 1}/{journey.steps.length} · {session.currentStep.title}
+          </span>
+        </div>
+        {stepDone ? (
+          <button className="continue" onClick={advance}>
+            {session.isLastStep ? "Finish journey ▸" : "Next step ▸"}
+          </button>
+        ) : null}
+        <div className="hud-score">SCORE {session.totalScore}</div>
+      </header>
+
+      <main className="grid" key={stepIndex}>
+        <FileTree fs={engine.fs} cwd={engine.state.cwd} activeFile={engine.state.activeFile} />
+        <Terminal engine={engine} lines={lines} onRun={run} />
+        <MissionPanel mission={engine.mission} engine={engine} />
       </main>
 
       <footer className="arcade">
