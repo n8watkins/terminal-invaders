@@ -21,7 +21,7 @@ check                   →  validate the mission
 
 - ✅ `packages/core` — virtual filesystem, command parser, resolver, autocomplete, objective
   validator, scoring, session engine. Fully unit-tested.
-- ✅ `packages/missions` — 10 missions across navigation / search / lazyvim / git / workflow.
+- ✅ `packages/missions` — 50 missions (10 per track) across navigation / search / lazyvim / git / workflow.
 - ✅ Simulated **nvim** editor (i/esc/insert, `:w` `:q` `:wq`, `/search`, `:%s/old/new/g`, `dd`).
 - ✅ Simulated **git** (HEAD/index/working: `status` `diff` `add` `restore` `commit` `log`).
 - ✅ `apps/cli` — playable readline game: mission select, Tab autocomplete, history,

@@ -9,7 +9,7 @@ The full vertical slice is done and green: a shared engine drives a playable CLI
 app, **and** a real-sandbox mode. **All five PRD sprints have landed, including Sprint 4** —
 the curriculum is filled out to its designed depth of **5 tracks × 10 missions = 50**.
 
-- **66 tests passing**, typecheck clean across all 4 projects.
+- **86 tests passing**, typecheck clean across all 4 projects.
 - Run: `pnpm play` (CLI) · `pnpm play sandbox` (real mode) · `pnpm dev` (web) · `pnpm test` · `pnpm typecheck`
 
 ## Done
