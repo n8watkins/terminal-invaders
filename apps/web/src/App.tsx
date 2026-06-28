@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useReducer, useState } from "react";
 import { conceptsForMission, GameEngine, type Mission } from "@terminal-invaders/core";
-import { MISSIONS } from "@terminal-invaders/missions";
+import { LEARNING_PATHS, missionsForPath, type LearningPath } from "@terminal-invaders/missions";
 import { FileTree } from "./components/FileTree.tsx";
 import { MissionPanel } from "./components/MissionPanel.tsx";
 import { Terminal } from "./components/Terminal.tsx";
@@ -17,6 +17,7 @@ import {
 const CLEAR_MARKER = "\x1b[CLEAR\x1b[";
 
 export function App() {
+  const [path, setPath] = useState<LearningPath | null>(null);
   const [mission, setMission] = useState<Mission | null>(null);
   // Read persisted progress once; updates flow back via onComplete so the picker
   // shows fresh ✓ badges after exiting a run, without a reload.
@@ -34,33 +35,101 @@ export function App() {
     setProgress((prev) => recordCompletion(prev, missionId, score));
   };
 
-  if (!mission) return <MissionPicker progress={progress} onPick={setMission} />;
-  // key={mission.id} keeps the per-mission remount-by-id behavior intact.
-  return (
-    <Game
-      mission={mission}
-      onExit={() => setMission(null)}
-      onComplete={handleComplete}
-      key={mission.id}
-    />
-  );
+  // Flow: pick a path → pick a mission within it → play. Exiting a run returns to
+  // the path's mission list; "‹ paths" returns to the path picker.
+  if (mission) {
+    // key={mission.id} keeps the per-mission remount-by-id behavior intact.
+    return (
+      <Game
+        mission={mission}
+        onExit={() => setMission(null)}
+        onComplete={handleComplete}
+        key={mission.id}
+      />
+    );
+  }
+  if (path) {
+    return (
+      <MissionPicker
+        path={path}
+        progress={progress}
+        onPick={setMission}
+        onBack={() => setPath(null)}
+      />
+    );
+  }
+  return <PathPicker progress={progress} onPick={setPath} />;
 }
 
-function MissionPicker({
+function PathPicker({
   progress,
   onPick,
 }: {
   progress: ProgressMap;
-  onPick: (m: Mission) => void;
+  onPick: (p: LearningPath) => void;
 }) {
   return (
     <div className="picker">
       <h1 className="logo">
         TERMINAL <span>INVADERS</span>
       </h1>
-      <p className="tagline">An arcade terminal trainer. Pick a mission and start the reps.</p>
+      <p className="tagline">Pick what you want to learn. Each path is a course you take end to end.</p>
+      <div className="path-list">
+        {LEARNING_PATHS.map((p) => {
+          const missions = missionsForPath(p.id);
+          const done = missions.filter((m) => progress[m.id]?.completed).length;
+          const complete = done === missions.length;
+          return (
+            <button
+              key={p.id}
+              className={`path-card${complete ? " completed" : ""}`}
+              onClick={() => onPick(p)}
+            >
+              <span className="path-card-head">
+                <span className="path-title">{p.title}</span>
+                <span className={`env-badge ${p.environment.replace(":", "-")}`}>{p.environment}</span>
+              </span>
+              <span className="path-blurb">{p.blurb}</span>
+              <span className="path-progress">
+                {complete ? "✓ " : ""}
+                {done}/{missions.length} complete
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function MissionPicker({
+  path,
+  progress,
+  onPick,
+  onBack,
+}: {
+  path: LearningPath;
+  progress: ProgressMap;
+  onPick: (m: Mission) => void;
+  onBack: () => void;
+}) {
+  const missions = missionsForPath(path.id);
+  return (
+    <div className="picker">
+      <button className="back" onClick={onBack}>
+        ‹ paths
+      </button>
+      <h1 className="logo" style={{ fontSize: "2rem" }}>
+        {path.title}
+      </h1>
+      <p className="tagline">{path.blurb}</p>
+      <ul className="outcomes">
+        {path.outcomes.map((o) => (
+          <li key={o}>{o}</li>
+        ))}
+      </ul>
       <div className="mission-grid">
-        {MISSIONS.map((m) => {
+        {missions.map((m) => {
           const done = progress[m.id]?.completed ?? false;
           return (
             <button

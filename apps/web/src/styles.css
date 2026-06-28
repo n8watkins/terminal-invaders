@@ -102,6 +102,83 @@ body {
   color: var(--blue);
 }
 
+/* ── Path picker ────────────────────────────────────────────── */
+.path-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+}
+.path-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-start;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  transition: border-color 0.15s, transform 0.15s;
+}
+.path-card:hover {
+  border-color: var(--cyan);
+  transform: translateY(-2px);
+}
+.path-card.completed {
+  border-color: var(--green);
+}
+.path-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+}
+.path-title {
+  font-size: 17px;
+  font-weight: 700;
+}
+.path-blurb {
+  color: var(--dim);
+  font-size: 13px;
+}
+.path-progress {
+  color: var(--yellow);
+  font-size: 12px;
+  letter-spacing: 1px;
+}
+.env-badge {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #1b2530;
+  color: var(--cyan);
+  white-space: nowrap;
+}
+.env-badge.nvim {
+  color: var(--green);
+}
+.env-badge.tool-git {
+  color: var(--yellow);
+}
+.env-badge.powershell {
+  color: var(--blue);
+}
+.outcomes {
+  color: var(--dim);
+  font-size: 13px;
+  margin: 0 0 28px;
+  padding-left: 18px;
+}
+.outcomes li {
+  margin: 2px 0;
+}
+
 /* ── Game layout ────────────────────────────────────────────── */
 .game {
   display: flex;

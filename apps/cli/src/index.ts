@@ -2,7 +2,16 @@
 import * as readline from "node:readline";
 import { stdin, stdout } from "node:process";
 import { GameEngine, completionCandidates, type Mission } from "@terminal-invaders/core";
-import { MISSIONS, getMission } from "@terminal-invaders/missions";
+import {
+  LEARNING_PATHS,
+  MISSIONS,
+  getMission,
+  getPath,
+  missionsForPath,
+  nextInPath,
+  pathForMission,
+  type LearningPath,
+} from "@terminal-invaders/missions";
 import { c } from "./colors.ts";
 import { banner, checklist, prompt, renderEvents, replayBreakdown } from "./render.ts";
 import { runSandbox, sandboxEligible } from "./sandbox.ts";
@@ -11,27 +20,67 @@ function print(s: string | string[]): void {
   stdout.write((Array.isArray(s) ? s.join("\n") : s) + "\n");
 }
 
-/** Pick a mission: honor an id/index arg, otherwise show a menu. */
-async function chooseMission(arg?: string): Promise<Mission | undefined> {
-  if (arg) {
-    const byId = getMission(arg);
-    if (byId) return byId;
-    const idx = Number(arg) - 1;
-    if (Number.isInteger(idx) && MISSIONS[idx]) return MISSIONS[idx];
-    print(c.red(`No mission "${arg}".`));
-  }
+async function ask(question: string): Promise<string> {
+  const rl = readline.createInterface({ input: stdin, output: stdout });
+  const answer = await new Promise<string>((res) => rl.question(question, res));
+  rl.close();
+  return answer.trim();
+}
 
-  print(c.bold(c.magenta("\nTERMINAL INVADERS")) + c.dim("  — choose a mission\n"));
-  MISSIONS.forEach((m, i) => {
-    print(`  ${c.cyan(String(i + 1))}. ${c.bold(m.title)} ${c.dim(`(${m.track}, ${"★".repeat(m.difficulty)})`)}`);
+/** Pick a learning path. Returns undefined to quit. */
+async function choosePath(completed: Set<string>): Promise<LearningPath | undefined> {
+  print(c.bold(c.magenta("\nTERMINAL INVADERS")) + c.dim("  — choose what to learn\n"));
+  LEARNING_PATHS.forEach((p, i) => {
+    const done = p.missionIds.filter((id) => completed.has(id)).length;
+    const total = p.missionIds.length;
+    const progress = done === total ? c.green(`✓ ${done}/${total}`) : c.dim(`${done}/${total}`);
+    print(`  ${c.cyan(String(i + 1))}. ${c.bold(p.title)}  ${progress}  ${c.dim(`[${p.environment}]`)}`);
+    print(`       ${c.dim(p.blurb)}`);
   });
   print("");
+  const answer = await ask(c.green("path> ") + c.dim("(number, or q to quit) "));
+  if (answer.toLowerCase() === "q" || answer === "") return undefined;
+  return LEARNING_PATHS[Number(answer) - 1] ?? getPath(answer);
+}
 
-  const rl = readline.createInterface({ input: stdin, output: stdout });
-  const answer = await new Promise<string>((res) => rl.question(c.green("select> "), res));
-  rl.close();
-  const idx = Number(answer.trim()) - 1;
-  return MISSIONS[idx] ?? getMission(answer.trim());
+/** Pick a mission within a path. Returns undefined to go back. */
+async function chooseMissionInPath(
+  path: LearningPath,
+  completed: Set<string>,
+): Promise<Mission | undefined> {
+  const missions = missionsForPath(path.id);
+  print("");
+  print(c.bold(path.title) + c.dim(`  — ${path.environment}`));
+  for (const o of path.outcomes) print(c.dim(`   • ${o}`));
+  print("");
+  missions.forEach((m, i) => {
+    const mark = completed.has(m.id) ? c.green("✓") : c.gray("□");
+    print(`  ${mark} ${c.cyan(String(i + 1))}. ${c.bold(m.title)} ${c.dim(`(${"★".repeat(m.difficulty)})`)}`);
+  });
+  print("");
+  const answer = await ask(c.green("mission> ") + c.dim("(number, Enter = first unfinished, b = back) "));
+  if (answer.toLowerCase() === "b") return undefined;
+  if (answer === "") return missions.find((m) => !completed.has(m.id)) ?? missions[0];
+  return missions[Number(answer) - 1] ?? getMission(answer);
+}
+
+/** Play a mission, then walk the rest of its path. */
+async function playPath(start: Mission, completed: Set<string>): Promise<void> {
+  let mission: Mission | undefined = start;
+  while (mission) {
+    await playMission(mission);
+    completed.add(mission.id);
+    const next = nextInPath(mission.id);
+    if (!next) {
+      const path = pathForMission(mission.id);
+      print(c.green(c.bold(`\n★ Path complete: ${path?.title ?? ""} — every mission cleared. gg.\n`)));
+      break;
+    }
+    const again = await ask(
+      c.cyan(`\nNext: ${next.title}? `) + c.dim("[Enter = play, b = back to menu] "),
+    );
+    mission = again.toLowerCase() === "b" || again.toLowerCase() === "q" ? undefined : next;
+  }
 }
 
 function buildCompleter(engine: GameEngine) {
@@ -130,22 +179,28 @@ async function main(): Promise<void> {
     return;
   }
 
+  const completed = new Set<string>();
   const arg = process.argv[2];
-  let mission = await chooseMission(arg);
 
-  while (mission) {
-    await playMission(mission);
-    const next = MISSIONS[MISSIONS.indexOf(mission) + 1];
-    if (!next) {
-      print(c.green(c.bold("\nThat's the whole pack. More missions coming. gg.\n")));
-      break;
+  // Direct jump: `play <missionId|index>` or `play <pathId>` skips the path menu.
+  if (arg) {
+    const direct = getMission(arg) ?? MISSIONS[Number(arg) - 1];
+    if (direct) {
+      await playPath(direct, completed);
+    } else if (getPath(arg)) {
+      const m = await chooseMissionInPath(getPath(arg)!, completed);
+      if (m) await playPath(m, completed);
+    } else {
+      print(c.red(`No mission or path "${arg}".`));
     }
-    const rl = readline.createInterface({ input: stdin, output: stdout });
-    const again = await new Promise<string>((res) =>
-      rl.question(c.cyan(`\nNext: ${next.title}? `) + c.dim("[Enter = play, q = quit] "), res),
-    );
-    rl.close();
-    mission = again.trim().toLowerCase() === "q" ? undefined : next;
+  }
+
+  // Path menu loop: choose a path → choose a mission → walk the path → repeat.
+  while (true) {
+    const path = await choosePath(completed);
+    if (!path) break;
+    const mission = await chooseMissionInPath(path, completed);
+    if (mission) await playPath(mission, completed);
   }
   print(c.dim("See you in the terminal. ◈"));
 }

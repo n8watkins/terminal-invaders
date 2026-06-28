@@ -1,4 +1,5 @@
 import type { Mission } from "@terminal-invaders/core";
+import { LEARNING_PATHS, getPath, pathForMission, type LearningPath } from "./paths.ts";
 
 // --- navigation ---
 import { inspectRoot } from "./navigation/inspectRoot.ts";
@@ -126,6 +127,28 @@ export const MISSIONS: Mission[] = [
 
 export function getMission(id: string): Mission | undefined {
   return MISSIONS.find((m) => m.id === id);
+}
+
+// ── Learning paths (the selectable "course" layer over the flat campaign) ──
+export { LEARNING_PATHS, getPath, pathForMission };
+export type { LearningPath };
+
+/** Resolve a path's ordered mission ids to the actual mission objects. */
+export function missionsForPath(pathId: string): Mission[] {
+  const path = getPath(pathId);
+  if (!path) return [];
+  return path.missionIds
+    .map((id) => getMission(id))
+    .filter((m): m is Mission => m !== undefined);
+}
+
+/** The next mission within the same path, or undefined at the path's end. */
+export function nextInPath(missionId: string): Mission | undefined {
+  const path = pathForMission(missionId);
+  if (!path) return undefined;
+  const idx = path.missionIds.indexOf(missionId);
+  if (idx < 0 || idx + 1 >= path.missionIds.length) return undefined;
+  return getMission(path.missionIds[idx + 1]!);
 }
 
 export {
